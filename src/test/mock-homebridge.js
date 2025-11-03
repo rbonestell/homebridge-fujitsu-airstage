@@ -39,6 +39,12 @@ const mockCharacteristic = {
     }),
     'emit': mock.fn((event, listener) => {
         return mockCharacteristic;
+    }),
+    'setProps': mock.fn((props) => {
+        return mockCharacteristic;
+    }),
+    'updateValue': mock.fn((value) => {
+        return mockCharacteristic;
     })
 };
 
@@ -99,6 +105,8 @@ class MockHomebridge {
     resetMocks() {
         mockCharacteristic.on.mock.resetCalls();
         mockCharacteristic.emit.mock.resetCalls();
+        mockCharacteristic.setProps.mock.resetCalls();
+        mockCharacteristic.updateValue.mock.resetCalls();
         mockService.setCharacteristic.mock.resetCalls();
         mockService.getCharacteristic.mock.resetCalls();
         mockPlatform.api.updatePlatformAccessories.mock.resetCalls();

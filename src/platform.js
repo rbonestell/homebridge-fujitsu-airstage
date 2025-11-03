@@ -133,7 +133,7 @@ class Platform {
         }
 
         // Create local client with validated devices
-        this.airstageClient = new airstage.local.Client(validatedDevices, this.log);
+        this.airstageClient = new airstage.local.Client(validatedDevices, this.log, this.configManager);
 
         this.log.success(`✓ Local LAN mode initialized with ${validatedDevices.length} device(s)`);
     }

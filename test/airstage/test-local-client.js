@@ -433,3 +433,77 @@ test('LocalClient#refreshTokenOrAuthenticate is a no-op for local mode', (contex
         done();
     });
 });
+
+test('LocalClient#getTemperatureScale returns Celsius by default when no configManager', (context, done) => {
+    const client = new LocalClient(mockDevices);
+
+    client.getTemperatureScale((error, scale) => {
+        assert.strictEqual(error, null);
+        assert.strictEqual(scale, airstageConstants.TEMPERATURE_SCALE_CELSIUS);
+        done();
+    });
+});
+
+test('LocalClient#getTemperatureScale returns stored scale from configManager', (context, done) => {
+    const mockConfigManager = {
+        getTemperatureScale: mock.fn(() => airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT)
+    };
+
+    const client = new LocalClient(mockDevices, null, mockConfigManager);
+
+    client.getTemperatureScale((error, scale) => {
+        assert.strictEqual(error, null);
+        assert.strictEqual(scale, airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT);
+        assert.strictEqual(mockConfigManager.getTemperatureScale.mock.calls.length, 1);
+        done();
+    });
+});
+
+test('LocalClient#getTemperatureScale returns Celsius when configManager returns null', (context, done) => {
+    const mockConfigManager = {
+        getTemperatureScale: mock.fn(() => null)
+    };
+
+    const client = new LocalClient(mockDevices, null, mockConfigManager);
+
+    client.getTemperatureScale((error, scale) => {
+        assert.strictEqual(error, null);
+        assert.strictEqual(scale, airstageConstants.TEMPERATURE_SCALE_CELSIUS);
+        done();
+    });
+});
+
+test('LocalClient#setTemperatureScale returns error when no configManager', (context, done) => {
+    const client = new LocalClient(mockDevices);
+
+    client.setTemperatureScale(airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT, (error, scale) => {
+        assert.ok(error);
+        assert.strictEqual(error.message, 'ConfigManager not available');
+        done();
+    });
+});
+
+test('LocalClient#setTemperatureScale saves scale for all devices', (context, done) => {
+    const mockConfigManager = {
+        saveTemperatureScale: mock.fn()
+    };
+
+    const multiDevices = [
+        { name: 'Device 1', ipAddress: '192.168.1.100', deviceId: 'A0B1C2D3E4F5', deviceSubId: 0 },
+        { name: 'Device 2', ipAddress: '192.168.1.101', deviceId: 'F5E4D3C2B1A0', deviceSubId: 0 }
+    ];
+
+    const client = new LocalClient(multiDevices, null, mockConfigManager);
+
+    client.setTemperatureScale(airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT, (error, scale) => {
+        assert.strictEqual(error, null);
+        assert.strictEqual(scale, airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT);
+        // Should save for both devices
+        assert.strictEqual(mockConfigManager.saveTemperatureScale.mock.calls.length, 2);
+        assert.strictEqual(mockConfigManager.saveTemperatureScale.mock.calls[0].arguments[0], 'A0B1C2D3E4F5');
+        assert.strictEqual(mockConfigManager.saveTemperatureScale.mock.calls[0].arguments[1], airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT);
+        assert.strictEqual(mockConfigManager.saveTemperatureScale.mock.calls[1].arguments[0], 'F5E4D3C2B1A0');
+        assert.strictEqual(mockConfigManager.saveTemperatureScale.mock.calls[1].arguments[1], airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT);
+        done();
+    });
+});

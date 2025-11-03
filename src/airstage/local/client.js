@@ -10,9 +10,10 @@ const airstageConstants = require('../constants');
  */
 class LocalClient {
 
-    constructor(devices, logger = null) {
+    constructor(devices, logger = null, configManager = null) {
         this.devices = new Map();
         this.logger = logger;
+        this.configManager = configManager;
 
         // Request queue to prevent overwhelming the device
         this.requestQueue = [];
@@ -227,7 +228,7 @@ class LocalClient {
 
         // Log parameter values being set in a readable format
         const paramPairs = Object.entries(values).map(([key, val]) => `${key}=${val}`).join(', ');
-        this._log('debug', `[Local] SET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Parameters: ${paramPairs}`);
+        this._log('info', `[Local] SET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Parameters: ${paramPairs}`);
 
         const payload = {
             device_id: device.deviceId,
@@ -240,7 +241,7 @@ class LocalClient {
 
         // Request is automatically queued by _makeRequest
         const result = await this._makeRequest(device.deviceId, localConstants.ENDPOINT_SET_PARAM, payload);
-        this._log('debug', `[Local] SET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Success`);
+        this._log('info', `[Local] SET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Success`);
 
         return result;
     }
@@ -441,11 +442,22 @@ class LocalClient {
     getIndoorTemperature(deviceId, scale, callback) {
         this._getParam(deviceId, localConstants.PARAM_INDOOR_TEMP)
             .then(response => {
+                const device = this.devices.get(deviceId.toUpperCase());
+                const deviceName = device ? device.name : deviceId;
+
                 // Local API uses Fahrenheit × 100 encoding
-                let celsius = this._decodeFahrenheitToCelsius(response[localConstants.PARAM_INDOOR_TEMP]);
+                const rawValue = response[localConstants.PARAM_INDOOR_TEMP];
+                this._log('info', `[Local] getIndoorTemperature for ${deviceName} - Raw API value: ${rawValue}, Requested scale: ${scale}`);
+
+                let celsius = this._decodeFahrenheitToCelsius(rawValue);
+                this._log('info', `[Local] getIndoorTemperature for ${deviceName} - After F→C conversion: ${celsius}°C`);
 
                 if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
-                    celsius = this._celsiusToFahrenheit(celsius);
+                    const fahrenheit = this._celsiusToFahrenheit(celsius);
+                    this._log('info', `[Local] getIndoorTemperature for ${deviceName} - After C→F conversion: ${fahrenheit}°F (returning)`);
+                    celsius = fahrenheit;
+                } else {
+                    this._log('info', `[Local] getIndoorTemperature for ${deviceName} - Returning Celsius: ${celsius}°C`);
                 }
 
                 callback(null, celsius);
@@ -456,10 +468,21 @@ class LocalClient {
     getTargetTemperature(deviceId, scale, callback) {
         this._getParam(deviceId, localConstants.PARAM_TARGET_TEMP)
             .then(response => {
-                let celsius = this._decodeTemperature(response[localConstants.PARAM_TARGET_TEMP]);
+                const device = this.devices.get(deviceId.toUpperCase());
+                const deviceName = device ? device.name : deviceId;
+
+                const rawValue = response[localConstants.PARAM_TARGET_TEMP];
+                this._log('info', `[Local] getTargetTemperature for ${deviceName} - Raw API value: ${rawValue}, Requested scale: ${scale}`);
+
+                let celsius = this._decodeTemperature(rawValue);
+                this._log('info', `[Local] getTargetTemperature for ${deviceName} - After decoding: ${celsius}°C`);
 
                 if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
-                    celsius = this._celsiusToFahrenheit(celsius);
+                    const fahrenheit = this._celsiusToFahrenheit(celsius);
+                    this._log('info', `[Local] getTargetTemperature for ${deviceName} - After C→F conversion: ${fahrenheit}°F (returning)`);
+                    celsius = fahrenheit;
+                } else {
+                    this._log('info', `[Local] getTargetTemperature for ${deviceName} - Returning Celsius: ${celsius}°C`);
                 }
 
                 callback(null, celsius);
@@ -469,18 +492,25 @@ class LocalClient {
 
     setTargetTemperature(deviceId, temperature, scale, callback) {
         const device = this.devices.get(deviceId.toUpperCase());
+        const deviceName = device ? device.name : deviceId;
         const scaleLabel = scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT ? '°F' : '°C';
-        this._log('info', `[Local] ${device ? device.name : deviceId} (${deviceId} @ ${device ? device.ipAddress : 'unknown'}) - Target Temperature: ${temperature}${scaleLabel}`);
+
+        this._log('info', `[Local] setTargetTemperature for ${deviceName} - Received from HomeKit: ${temperature}${scaleLabel}`);
 
         let celsius = temperature;
 
         if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
             celsius = this._fahrenheitToCelsius(temperature);
+            this._log('info', `[Local] setTargetTemperature for ${deviceName} - After F→C conversion: ${celsius}°C`);
         } else {
+            const original = celsius;
             celsius = this._getClosestValidTemperature(temperature, airstageConstants.TEMPERATURE_SCALE_CELSIUS);
+            this._log('info', `[Local] setTargetTemperature for ${deviceName} - After rounding ${original}°C to nearest valid: ${celsius}°C`);
         }
 
         const apiValue = this._encodeTemperature(celsius);
+        this._log('info', `[Local] setTargetTemperature for ${deviceName} - Encoded API value: ${apiValue} (${celsius}°C × 10)`);
+
         const values = {};
         values[localConstants.PARAM_TARGET_TEMP] = apiValue;
 
@@ -490,9 +520,13 @@ class LocalClient {
                 if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
                     result = this._celsiusToFahrenheit(celsius);
                 }
+                this._log('info', `[Local] setTargetTemperature for ${deviceName} - SET completed successfully, returning: ${result}${scaleLabel}`);
                 callback(null, result);
             })
-            .catch(error => callback(error));
+            .catch(error => {
+                this._log('info', `[Local] setTargetTemperature for ${deviceName} - SET failed: ${error.message}`);
+                callback(error);
+            });
     }
 
     getTemperatureDelta(deviceId, scale, callback) {
@@ -729,8 +763,35 @@ class LocalClient {
     }
 
     getTemperatureScale(callback) {
-        // Temperature scale should come from platform config, not device
-        callback(null, airstageConstants.TEMPERATURE_SCALE_CELSIUS);
+        // Check if any device has a stored temperature scale preference
+        // Since temperature scale is per-user, not per-device, use first device's setting
+        // or default to Celsius
+        let scale = airstageConstants.TEMPERATURE_SCALE_CELSIUS;
+
+        if (this.configManager && this.devices.size > 0) {
+            const firstDeviceId = Array.from(this.devices.keys())[0];
+            const storedScale = this.configManager.getTemperatureScale(firstDeviceId);
+            if (storedScale) {
+                scale = storedScale;
+            }
+        }
+
+        callback(null, scale);
+    }
+
+    setTemperatureScale(scale, callback) {
+        if (!this.configManager) {
+            return callback(new Error('ConfigManager not available'), null);
+        }
+
+        // Store scale preference for all devices
+        this.devices.forEach((device, deviceId) => {
+            this.configManager.saveTemperatureScale(deviceId, scale);
+        });
+
+        this._log('info', `[Local] Temperature display units changed to: ${scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT ? '°F' : '°C'}`);
+
+        callback(null, scale);
     }
 }
 
