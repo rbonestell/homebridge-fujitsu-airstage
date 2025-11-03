@@ -35,7 +35,8 @@ class Platform {
         const connectionMode = this.config.connectionMode || 'cloud';
 
         if (connectionMode === 'local') {
-            this._initLocalMode();
+            // Store initialization promise to await in discoverDevices
+            this._initPromise = this._initLocalMode();
         } else {
             this._initCloudMode(withSetInterval);
         }
@@ -76,6 +77,9 @@ class Platform {
                     if (detection.success) {
                         deviceId = detection.deviceId;
                         this.log.success(`✓ Auto-detected device ID: ${deviceId}`);
+
+                        // Update in-memory config so it's available during the session
+                        device.deviceId = deviceId;
                     } else {
                         this.log.warn(`✗ Auto-detection failed for ${device.name} (${device.ipAddress})`);
                         this.log.warn(`  Error: ${detection.error}`);
@@ -129,7 +133,7 @@ class Platform {
         }
 
         // Create local client with validated devices
-        this.airstageClient = new airstage.local.Client(validatedDevices);
+        this.airstageClient = new airstage.local.Client(validatedDevices, this.log);
 
         this.log.success(`✓ Local LAN mode initialized with ${validatedDevices.length} device(s)`);
     }
@@ -179,11 +183,25 @@ class Platform {
         }
     }
 
-    _discoverLocalDevices(callback = null) {
+    async _discoverLocalDevices(callback = null) {
         this.log.info('Discovering local LAN devices');
 
+        // Wait for initialization to complete if it's still pending
+        if (this._initPromise) {
+            try {
+                await this._initPromise;
+            } catch (error) {
+                this.log.error('Local mode initialization failed:', error.message);
+                if (callback !== null) {
+                    callback(error);
+                }
+                return;
+            }
+        }
+
+        // Check if client was successfully initialized
         if (!this.airstageClient || !this.airstageClient.devices) {
-            this.log.error('Local client not initialized properly');
+            this.log.error('Initializing local Airstage client and devices');
             if (callback !== null) {
                 callback(new Error('Local client not initialized'));
             }

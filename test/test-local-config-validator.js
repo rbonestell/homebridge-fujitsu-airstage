@@ -36,6 +36,40 @@ test('LocalConfigValidator#detectDeviceId handles uppercase MAC from ARP', async
     arp.getMAC = origGetMAC;
 });
 
+test('LocalConfigValidator#detectDeviceId handles MAC address without zero-padding from ARP', async () => {
+    const arp = require('node-arp');
+    const origGetMAC = arp.getMAC;
+
+    // node-arp may return MAC addresses without zero-padding (e.g., "9:3" instead of "09:03")
+    arp.getMAC = (ipAddress, callback) => {
+        callback(null, 'cc:47:40:9:3:2b');
+    };
+
+    const result = await LocalConfigValidator.detectDeviceId('192.168.1.100');
+
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(result.deviceId, 'CC474009032B');
+
+    arp.getMAC = origGetMAC;
+});
+
+test('LocalConfigValidator#detectDeviceId handles mixed zero-padding from ARP', async () => {
+    const arp = require('node-arp');
+    const origGetMAC = arp.getMAC;
+
+    // Exact format from user's error: "cc:47:40:09:3:2b" (4th octet has zero, 5th doesn't)
+    arp.getMAC = (ipAddress, callback) => {
+        callback(null, 'cc:47:40:09:3:2b');
+    };
+
+    const result = await LocalConfigValidator.detectDeviceId('192.168.1.100');
+
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(result.deviceId, 'CC474009032B');
+
+    arp.getMAC = origGetMAC;
+});
+
 test('LocalConfigValidator#detectDeviceId returns error on ARP failure', async () => {
     const arp = require('node-arp');
     const origGetMAC = arp.getMAC;

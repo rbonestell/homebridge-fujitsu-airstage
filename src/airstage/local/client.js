@@ -10,8 +10,15 @@ const airstageConstants = require('../constants');
  */
 class LocalClient {
 
-    constructor(devices) {
+    constructor(devices, logger = null) {
         this.devices = new Map();
+        this.logger = logger;
+
+        // Request queue to prevent overwhelming the device
+        this.requestQueue = [];
+        this.activeRequests = 0;
+        this.maxConcurrentRequests = 2; // Limit concurrent requests to prevent device overload
+        this.requestDelay = 100; // Minimum delay between requests (ms)
 
         // Store devices with UPPERCASE device IDs
         if (Array.isArray(devices)) {
@@ -27,14 +34,60 @@ class LocalClient {
         }
     }
 
+    /**
+     * Log message if logger is available
+     */
+    _log(level, message) {
+        if (this.logger && this.logger[level]) {
+            this.logger[level](message);
+        }
+    }
+
+    /**
+     * Process request queue to prevent overwhelming the device
+     */
+    _processQueue() {
+        if (this.requestQueue.length === 0 || this.activeRequests >= this.maxConcurrentRequests) {
+            return;
+        }
+
+        const { resolve, reject, fn } = this.requestQueue.shift();
+        this.activeRequests++;
+
+        fn()
+            .then(result => {
+                this.activeRequests--;
+                resolve(result);
+                // Add delay before processing next request
+                setTimeout(() => this._processQueue(), this.requestDelay);
+            })
+            .catch(error => {
+                this.activeRequests--;
+                reject(error);
+                // Add delay before processing next request
+                setTimeout(() => this._processQueue(), this.requestDelay);
+            });
+    }
+
+    /**
+     * Queue a request to prevent overwhelming the device
+     */
+    _queueRequest(fn) {
+        return new Promise((resolve, reject) => {
+            this.requestQueue.push({ resolve, reject, fn });
+            this._processQueue();
+        });
+    }
+
     // ===================================================================
     // Core HTTP Request Methods
     // ===================================================================
 
     /**
-     * Make HTTP POST request to device
+     * Make raw HTTP POST request to device (internal - bypasses queue)
+     * Use _makeRequest() instead for automatic queuing
      */
-    _makeRequest(deviceId, endpoint, payload) {
+    _makeRawRequest(deviceId, endpoint, payload) {
         return new Promise((resolve, reject) => {
             const device = this.devices.get(deviceId.toUpperCase());
 
@@ -50,12 +103,21 @@ class LocalClient {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Content-Length': Buffer.byteLength(postData)
+                    'Content-Length': Buffer.byteLength(postData),
+                    'Connection': 'close'  // Force connection close to prevent keep-alive issues
                 },
-                timeout: localConstants.DEFAULT_TIMEOUT
+                timeout: localConstants.DEFAULT_TIMEOUT,
+                agent: false  // CRITICAL: Disable connection pooling - create fresh connection each time
             };
 
+            // Debug logging for troubleshooting
+            this._log('debug', `[Local] HTTP ${options.method} http://${device.ipAddress}:${options.port}${options.path}`);
+            this._log('debug', `[Local] Headers: ${JSON.stringify(options.headers)}`);
+            this._log('debug', `[Local] Payload: ${postData.substring(0, 200)}${postData.length > 200 ? '...' : ''}`);
+
             const req = http.request(options, (res) => {
+                this._log('debug', `[Local] Response status: ${res.statusCode}`);
+                this._log('debug', `[Local] Response headers: ${JSON.stringify(res.headers)}`);
                 let data = '';
 
                 res.on('data', (chunk) => {
@@ -63,6 +125,7 @@ class LocalClient {
                 });
 
                 res.on('end', () => {
+                    this._log('debug', `[Local] Response complete, body length: ${data.length} bytes`);
                     try {
                         const response = JSON.parse(data);
 
@@ -72,23 +135,52 @@ class LocalClient {
                             reject(new Error(`API Error: ${response.error || 'Unknown error'}`));
                         }
                     } catch (e) {
-                        reject(new Error(`JSON Parse Error: ${e.message}`));
+                        // Enhanced error logging with response details
+                        const preview = data.length > 100 ? data.substring(0, 100) + '...' : data;
+                        reject(new Error(
+                            `JSON Parse Error: ${e.message}\n` +
+                            `HTTP Status: ${res.statusCode}\n` +
+                            `Response Preview: ${preview}\n` +
+                            `Device: ${device.name} (${device.ipAddress})`
+                        ));
                     }
                 });
             });
 
             req.on('error', (e) => {
-                reject(new Error(`HTTP Request Error: ${e.message}`));
+                this._log('debug', `[Local] Request error: ${e.message}, code: ${e.code}`);
+                reject(new Error(
+                    `HTTP Request Error: ${e.message}\n` +
+                    `Device: ${device.name} (${device.ipAddress})\n` +
+                    `Endpoint: ${endpoint}\n` +
+                    `Error Code: ${e.code || 'unknown'}\n` +
+                    `Hint: Check network connectivity and device availability`
+                ));
             });
 
             req.on('timeout', () => {
                 req.destroy();
-                reject(new Error(`Request timeout (${localConstants.DEFAULT_TIMEOUT}ms)`));
+                reject(new Error(
+                    `Request timeout (${localConstants.DEFAULT_TIMEOUT}ms)\n` +
+                    `Device: ${device.name} (${device.ipAddress})\n` +
+                    `Endpoint: ${endpoint}\n` +
+                    `Hint: Device may be slow to respond or unreachable`
+                ));
             });
 
             req.write(postData);
             req.end();
         });
+    }
+
+    /**
+     * Make HTTP POST request to device (automatically queued)
+     * This is the public-facing method that handles queuing transparently
+     */
+    _makeRequest(deviceId, endpoint, payload) {
+        return this._queueRequest(() =>
+            this._makeRawRequest(deviceId, endpoint, payload)
+        );
     }
 
     /**
@@ -101,16 +193,26 @@ class LocalClient {
             throw new Error(`Device ${deviceId} not found`);
         }
 
+        const paramList = Array.isArray(parameters) ? parameters : [parameters];
+        this._log('debug', `[Local] GET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Parameters: ${paramList.join(', ')}`);
+
         const payload = {
             device_id: device.deviceId,
             device_sub_id: device.deviceSubId,
             req_id: '',
             modified_by: '',
             set_level: localConstants.SET_LEVEL_GET,
-            list: Array.isArray(parameters) ? parameters : [parameters]
+            list: paramList
         };
 
-        return await this._makeRequest(device.deviceId, localConstants.ENDPOINT_GET_PARAM, payload);
+        // Request is automatically queued by _makeRequest
+        const result = await this._makeRequest(device.deviceId, localConstants.ENDPOINT_GET_PARAM, payload);
+
+        // Log parameter values in a readable format
+        const resultValues = paramList.map(param => `${param}=${result[param]}`).join(', ');
+        this._log('debug', `[Local] GET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Values: ${resultValues}`);
+
+        return result;
     }
 
     /**
@@ -123,6 +225,10 @@ class LocalClient {
             throw new Error(`Device ${deviceId} not found`);
         }
 
+        // Log parameter values being set in a readable format
+        const paramPairs = Object.entries(values).map(([key, val]) => `${key}=${val}`).join(', ');
+        this._log('debug', `[Local] SET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Parameters: ${paramPairs}`);
+
         const payload = {
             device_id: device.deviceId,
             device_sub_id: device.deviceSubId,
@@ -132,7 +238,11 @@ class LocalClient {
             value: values
         };
 
-        return await this._makeRequest(device.deviceId, localConstants.ENDPOINT_SET_PARAM, payload);
+        // Request is automatically queued by _makeRequest
+        const result = await this._makeRequest(device.deviceId, localConstants.ENDPOINT_SET_PARAM, payload);
+        this._log('debug', `[Local] SET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Success`);
+
+        return result;
     }
 
     // ===================================================================
@@ -273,6 +383,10 @@ class LocalClient {
     }
 
     setPowerState(deviceId, toggle, callback) {
+        const device = this.devices.get(deviceId.toUpperCase());
+        const state = toggle === airstageConstants.TOGGLE_ON ? 'ON' : 'OFF';
+        this._log('info', `[Local] ${device ? device.name : deviceId} (${deviceId} @ ${device ? device.ipAddress : 'unknown'}) - Power: ${state}`);
+
         const parameterValue = this._toggleToParameterValue(toggle);
         const values = {};
         values[localConstants.PARAM_POWER] = parameterValue;
@@ -298,6 +412,17 @@ class LocalClient {
     }
 
     setOperationMode(deviceId, operationMode, callback) {
+        const device = this.devices.get(deviceId.toUpperCase());
+        const modeNames = {
+            [airstageConstants.OPERATION_MODE_AUTO]: 'Auto',
+            [airstageConstants.OPERATION_MODE_COOL]: 'Cool',
+            [airstageConstants.OPERATION_MODE_DRY]: 'Dry',
+            [airstageConstants.OPERATION_MODE_FAN]: 'Fan',
+            [airstageConstants.OPERATION_MODE_HEAT]: 'Heat'
+        };
+        const modeName = modeNames[operationMode] || operationMode;
+        this._log('info', `[Local] ${device ? device.name : deviceId} (${deviceId} @ ${device ? device.ipAddress : 'unknown'}) - Operation Mode: ${modeName}`);
+
         const parameterValue = this._operationModeToParameterValue(operationMode);
         const values = {};
         values[localConstants.PARAM_OPERATION_MODE] = parameterValue;
@@ -343,6 +468,10 @@ class LocalClient {
     }
 
     setTargetTemperature(deviceId, temperature, scale, callback) {
+        const device = this.devices.get(deviceId.toUpperCase());
+        const scaleLabel = scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT ? '°F' : '°C';
+        this._log('info', `[Local] ${device ? device.name : deviceId} (${deviceId} @ ${device ? device.ipAddress : 'unknown'}) - Target Temperature: ${temperature}${scaleLabel}`);
+
         let celsius = temperature;
 
         if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
@@ -397,6 +526,17 @@ class LocalClient {
     }
 
     setFanSpeed(deviceId, fanSpeed, callback) {
+        const device = this.devices.get(deviceId.toUpperCase());
+        const speedNames = {
+            [airstageConstants.FAN_SPEED_AUTO]: 'Auto',
+            [airstageConstants.FAN_SPEED_QUIET]: 'Quiet',
+            [airstageConstants.FAN_SPEED_LOW]: 'Low',
+            [airstageConstants.FAN_SPEED_MEDIUM]: 'Medium',
+            [airstageConstants.FAN_SPEED_HIGH]: 'High'
+        };
+        const speedName = speedNames[fanSpeed] || fanSpeed;
+        this._log('info', `[Local] ${device ? device.name : deviceId} (${deviceId} @ ${device ? device.ipAddress : 'unknown'}) - Fan Speed: ${speedName}`);
+
         const parameterValue = this._fanSpeedToParameterValue(fanSpeed);
         const values = {};
         values[localConstants.PARAM_FAN_SPEED] = parameterValue;

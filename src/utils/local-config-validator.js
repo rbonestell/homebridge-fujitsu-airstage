@@ -35,8 +35,19 @@ class LocalConfigValidator {
                     });
                 }
 
-                // Remove colons and convert to uppercase
-                const deviceId = mac.replace(/:/g, '').toUpperCase();
+                // Normalize MAC address: split by colons, pad each octet to 2 chars, join, and uppercase
+                // node-arp may return MAC addresses without zero-padding (e.g., "cc:47:40:09:3:2b" instead of "cc:47:40:09:03:2b")
+                const octets = mac.split(':');
+                if (octets.length !== 6) {
+                    return resolve({
+                        success: false,
+                        error: `Invalid MAC address format: ${mac}`,
+                        details: `Expected 6 octets separated by colons, got ${octets.length} octets`
+                    });
+                }
+
+                // Pad each octet with leading zero if needed
+                const deviceId = octets.map(octet => octet.padStart(2, '0')).join('').toUpperCase();
 
                 // Validate format (12 hexadecimal characters)
                 if (/^[A-F0-9]{12}$/.test(deviceId)) {
