@@ -1,0 +1,597 @@
+'use strict';
+
+const http = require('http');
+const localConstants = require('./constants');
+const airstageConstants = require('../constants');
+
+/**
+ * Local LAN API Client for Fujitsu Airstage devices
+ * Implements same interface as cloud client for compatibility with accessories
+ */
+class LocalClient {
+
+    constructor(devices) {
+        this.devices = new Map();
+
+        // Store devices with UPPERCASE device IDs
+        if (Array.isArray(devices)) {
+            devices.forEach(device => {
+                const deviceId = device.deviceId.toUpperCase();
+                this.devices.set(deviceId, {
+                    deviceId: deviceId,
+                    ipAddress: device.ipAddress,
+                    deviceSubId: device.deviceSubId || 0,
+                    name: device.name || deviceId
+                });
+            });
+        }
+    }
+
+    // ===================================================================
+    // Core HTTP Request Methods
+    // ===================================================================
+
+    /**
+     * Make HTTP POST request to device
+     */
+    _makeRequest(deviceId, endpoint, payload) {
+        return new Promise((resolve, reject) => {
+            const device = this.devices.get(deviceId.toUpperCase());
+
+            if (!device) {
+                return reject(new Error(`Device ${deviceId} not found in configuration`));
+            }
+
+            const postData = JSON.stringify(payload);
+            const options = {
+                hostname: device.ipAddress,
+                port: localConstants.DEFAULT_PORT,
+                path: endpoint,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData)
+                },
+                timeout: localConstants.DEFAULT_TIMEOUT
+            };
+
+            const req = http.request(options, (res) => {
+                let data = '';
+
+                res.on('data', (chunk) => {
+                    data += chunk;
+                });
+
+                res.on('end', () => {
+                    try {
+                        const response = JSON.parse(data);
+
+                        if (response.result === 'OK') {
+                            resolve(response.value || response);
+                        } else {
+                            reject(new Error(`API Error: ${response.error || 'Unknown error'}`));
+                        }
+                    } catch (e) {
+                        reject(new Error(`JSON Parse Error: ${e.message}`));
+                    }
+                });
+            });
+
+            req.on('error', (e) => {
+                reject(new Error(`HTTP Request Error: ${e.message}`));
+            });
+
+            req.on('timeout', () => {
+                req.destroy();
+                reject(new Error(`Request timeout (${localConstants.DEFAULT_TIMEOUT}ms)`));
+            });
+
+            req.write(postData);
+            req.end();
+        });
+    }
+
+    /**
+     * Get parameter(s) from device
+     */
+    async _getParam(deviceId, parameters) {
+        const device = this.devices.get(deviceId.toUpperCase());
+
+        if (!device) {
+            throw new Error(`Device ${deviceId} not found`);
+        }
+
+        const payload = {
+            device_id: device.deviceId,
+            device_sub_id: device.deviceSubId,
+            req_id: '',
+            modified_by: '',
+            set_level: localConstants.SET_LEVEL_GET,
+            list: Array.isArray(parameters) ? parameters : [parameters]
+        };
+
+        return await this._makeRequest(device.deviceId, localConstants.ENDPOINT_GET_PARAM, payload);
+    }
+
+    /**
+     * Set parameter(s) on device
+     */
+    async _setParam(deviceId, values) {
+        const device = this.devices.get(deviceId.toUpperCase());
+
+        if (!device) {
+            throw new Error(`Device ${deviceId} not found`);
+        }
+
+        const payload = {
+            device_id: device.deviceId,
+            device_sub_id: device.deviceSubId,
+            req_id: '',
+            modified_by: '',
+            set_level: localConstants.SET_LEVEL_SET,
+            value: values
+        };
+
+        return await this._makeRequest(device.deviceId, localConstants.ENDPOINT_SET_PARAM, payload);
+    }
+
+    // ===================================================================
+    // Temperature Conversion Methods
+    // ===================================================================
+
+    /**
+     * Encode temperature for SetParam (Celsius × 10)
+     */
+    _encodeTemperature(celsius) {
+        return Math.round(celsius * 10).toString();
+    }
+
+    /**
+     * Decode target temperature from GetParam (value ÷ 10)
+     */
+    _decodeTemperature(apiValue) {
+        return parseInt(apiValue) / 10;
+    }
+
+    /**
+     * Decode indoor temperature from local API (Fahrenheit × 100)
+     * LOCAL API DIFFERS FROM CLOUD: Uses Fahrenheit × 100, not (Celsius + 50) × 100
+     */
+    _decodeFahrenheitToCelsius(apiValue) {
+        const fahrenheit = parseInt(apiValue) / 100;
+        return (fahrenheit - 32) * 5 / 9;
+    }
+
+    /**
+     * Get closest valid temperature
+     */
+    _getClosestValidTemperature(temperature, scale) {
+        if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
+            return airstageConstants.VALID_FAHRENHEIT_VALUES.reduce(function(x, y) {
+                return (Math.abs(y - temperature) < Math.abs(x - temperature) ? y : x);
+            });
+        } else if (scale === airstageConstants.TEMPERATURE_SCALE_CELSIUS) {
+            return airstageConstants.VALID_CELSIUS_VALUES.reduce(function(x, y) {
+                return (Math.abs(y - temperature) < Math.abs(x - temperature) ? y : x);
+            });
+        }
+        return temperature;
+    }
+
+    /**
+     * Convert Fahrenheit to Celsius using lookup map
+     */
+    _fahrenheitToCelsius(fahrenheit) {
+        const closestFahrenheit = this._getClosestValidTemperature(
+            fahrenheit,
+            airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT
+        );
+        return airstageConstants.FAHRENHEIT_TO_CELSIUS_MAP[closestFahrenheit];
+    }
+
+    /**
+     * Convert Celsius to Fahrenheit using lookup map
+     */
+    _celsiusToFahrenheit(celsius) {
+        const closestCelsius = this._getClosestValidTemperature(
+            celsius,
+            airstageConstants.TEMPERATURE_SCALE_CELSIUS
+        );
+        return airstageConstants.CELSIUS_TO_FAHRENHEIT_MAP[closestCelsius];
+    }
+
+    // ===================================================================
+    // Value Mapping Methods (reused from cloud client pattern)
+    // ===================================================================
+
+    _toggleToParameterValue(toggle) {
+        return airstageConstants.TOGGLE_TO_PARAMETER_VALUE_MAP[toggle];
+    }
+
+    _parameterValueToToggle(parameterValue) {
+        return airstageConstants.PARAMETER_VALUE_TO_TOGGLE_MAP[parameterValue];
+    }
+
+    _operationModeToParameterValue(operationMode) {
+        return airstageConstants.OPERATION_MODE_TO_PARAMETER_VALUE_MAP[operationMode];
+    }
+
+    _parameterValueToOperationMode(parameterValue) {
+        return airstageConstants.PARAMETER_VALUE_TO_OPERATION_MODE_MAP[parameterValue];
+    }
+
+    _fanSpeedToParameterValue(fanSpeed) {
+        return airstageConstants.FAN_SPEED_TO_PARAMETER_VALUE_MAP[fanSpeed];
+    }
+
+    _parameterValueToFanSpeed(parameterValue) {
+        return airstageConstants.PARAMETER_VALUE_TO_FAN_SPEED_MAP[parameterValue];
+    }
+
+    _validateAirflowVerticalDirectionValue(value) {
+        if (value < airstageConstants.MIN_AIRFLOW_VERTICAL_DIRECTION) {
+            value = airstageConstants.MIN_AIRFLOW_VERTICAL_DIRECTION;
+        } else if (value > airstageConstants.MAX_AIRFLOW_VERTICAL_DIRECTION) {
+            value = airstageConstants.MAX_AIRFLOW_VERTICAL_DIRECTION;
+        }
+        return value;
+    }
+
+    // ===================================================================
+    // Device Metadata Methods
+    // ===================================================================
+
+    getName(deviceId, callback) {
+        const device = this.devices.get(deviceId.toUpperCase());
+
+        if (!device) {
+            return callback(new Error(`Device ${deviceId} not found`), null);
+        }
+
+        callback(null, device.name);
+    }
+
+    getModel(deviceId, callback) {
+        this._getParam(deviceId, localConstants.PARAM_MODEL)
+            .then(response => {
+                callback(null, response[localConstants.PARAM_MODEL] || null);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    // ===================================================================
+    // Power Control Methods
+    // ===================================================================
+
+    getPowerState(deviceId, callback) {
+        this._getParam(deviceId, localConstants.PARAM_POWER)
+            .then(response => {
+                const toggle = this._parameterValueToToggle(response[localConstants.PARAM_POWER]);
+                callback(null, toggle);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setPowerState(deviceId, toggle, callback) {
+        const parameterValue = this._toggleToParameterValue(toggle);
+        const values = {};
+        values[localConstants.PARAM_POWER] = parameterValue;
+
+        this._setParam(deviceId, values)
+            .then(() => {
+                callback(null, toggle);
+            })
+            .catch(error => callback(error));
+    }
+
+    // ===================================================================
+    // Operation Mode Methods
+    // ===================================================================
+
+    getOperationMode(deviceId, callback) {
+        this._getParam(deviceId, localConstants.PARAM_OPERATION_MODE)
+            .then(response => {
+                const mode = this._parameterValueToOperationMode(response[localConstants.PARAM_OPERATION_MODE]);
+                callback(null, mode);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setOperationMode(deviceId, operationMode, callback) {
+        const parameterValue = this._operationModeToParameterValue(operationMode);
+        const values = {};
+        values[localConstants.PARAM_OPERATION_MODE] = parameterValue;
+
+        this._setParam(deviceId, values)
+            .then(() => {
+                callback(null, operationMode);
+            })
+            .catch(error => callback(error));
+    }
+
+    // ===================================================================
+    // Temperature Methods
+    // ===================================================================
+
+    getIndoorTemperature(deviceId, scale, callback) {
+        this._getParam(deviceId, localConstants.PARAM_INDOOR_TEMP)
+            .then(response => {
+                // Local API uses Fahrenheit × 100 encoding
+                let celsius = this._decodeFahrenheitToCelsius(response[localConstants.PARAM_INDOOR_TEMP]);
+
+                if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
+                    celsius = this._celsiusToFahrenheit(celsius);
+                }
+
+                callback(null, celsius);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    getTargetTemperature(deviceId, scale, callback) {
+        this._getParam(deviceId, localConstants.PARAM_TARGET_TEMP)
+            .then(response => {
+                let celsius = this._decodeTemperature(response[localConstants.PARAM_TARGET_TEMP]);
+
+                if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
+                    celsius = this._celsiusToFahrenheit(celsius);
+                }
+
+                callback(null, celsius);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setTargetTemperature(deviceId, temperature, scale, callback) {
+        let celsius = temperature;
+
+        if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
+            celsius = this._fahrenheitToCelsius(temperature);
+        } else {
+            celsius = this._getClosestValidTemperature(temperature, airstageConstants.TEMPERATURE_SCALE_CELSIUS);
+        }
+
+        const apiValue = this._encodeTemperature(celsius);
+        const values = {};
+        values[localConstants.PARAM_TARGET_TEMP] = apiValue;
+
+        this._setParam(deviceId, values)
+            .then(() => {
+                let result = celsius;
+                if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
+                    result = this._celsiusToFahrenheit(celsius);
+                }
+                callback(null, result);
+            })
+            .catch(error => callback(error));
+    }
+
+    getTemperatureDelta(deviceId, scale, callback) {
+        this.getIndoorTemperature(deviceId, scale, (error, indoorTemperature) => {
+            if (error) {
+                return callback(error, null);
+            }
+
+            this.getTargetTemperature(deviceId, scale, (error, targetTemperature) => {
+                if (error) {
+                    return callback(error, null);
+                }
+
+                const temperatureDelta = indoorTemperature - targetTemperature;
+                callback(null, temperatureDelta);
+            });
+        });
+    }
+
+    // ===================================================================
+    // Fan Speed Methods
+    // ===================================================================
+
+    getFanSpeed(deviceId, callback) {
+        this._getParam(deviceId, localConstants.PARAM_FAN_SPEED)
+            .then(response => {
+                const fanSpeed = this._parameterValueToFanSpeed(response[localConstants.PARAM_FAN_SPEED]);
+                callback(null, fanSpeed);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setFanSpeed(deviceId, fanSpeed, callback) {
+        const parameterValue = this._fanSpeedToParameterValue(fanSpeed);
+        const values = {};
+        values[localConstants.PARAM_FAN_SPEED] = parameterValue;
+
+        this._setParam(deviceId, values)
+            .then(() => {
+                callback(null, fanSpeed);
+            })
+            .catch(error => callback(error));
+    }
+
+    // ===================================================================
+    // Airflow Methods
+    // ===================================================================
+
+    getAirflowVerticalDirection(deviceId, callback) {
+        this._getParam(deviceId, localConstants.PARAM_AIRFLOW_VERTICAL_DIRECTION)
+            .then(response => {
+                const value = this._validateAirflowVerticalDirectionValue(
+                    parseInt(response[localConstants.PARAM_AIRFLOW_VERTICAL_DIRECTION])
+                );
+                callback(null, value);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setAirflowVerticalDirection(deviceId, value, callback) {
+        const validatedValue = this._validateAirflowVerticalDirectionValue(value);
+        const values = {};
+        values[localConstants.PARAM_AIRFLOW_VERTICAL_DIRECTION] = validatedValue.toString();
+
+        this._setParam(deviceId, values)
+            .then(() => {
+                callback(null, validatedValue);
+            })
+            .catch(error => callback(error));
+    }
+
+    getAirflowVerticalSwingState(deviceId, callback) {
+        this._getParam(deviceId, localConstants.PARAM_AIRFLOW_VERTICAL_SWING)
+            .then(response => {
+                const toggle = this._parameterValueToToggle(response[localConstants.PARAM_AIRFLOW_VERTICAL_SWING]);
+                callback(null, toggle);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setAirflowVerticalSwingState(deviceId, toggle, callback) {
+        const parameterValue = this._toggleToParameterValue(toggle);
+        const values = {};
+        values[localConstants.PARAM_AIRFLOW_VERTICAL_SWING] = parameterValue;
+
+        this._setParam(deviceId, values)
+            .then(() => {
+                callback(null, toggle);
+            })
+            .catch(error => callback(error));
+    }
+
+    // ===================================================================
+    // Special Mode Methods
+    // ===================================================================
+
+    getPowerfulState(deviceId, callback) {
+        this._getParam(deviceId, localConstants.PARAM_POWERFUL)
+            .then(response => {
+                const toggle = this._parameterValueToToggle(response[localConstants.PARAM_POWERFUL]);
+                callback(null, toggle);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setPowerfulState(deviceId, toggle, callback) {
+        const parameterValue = this._toggleToParameterValue(toggle);
+        const values = {};
+        values[localConstants.PARAM_POWERFUL] = parameterValue;
+
+        this._setParam(deviceId, values)
+            .then(() => {
+                callback(null, toggle);
+            })
+            .catch(error => callback(error));
+    }
+
+    getEconomyState(deviceId, callback) {
+        this._getParam(deviceId, localConstants.PARAM_ECONOMY)
+            .then(response => {
+                const toggle = this._parameterValueToToggle(response[localConstants.PARAM_ECONOMY]);
+                callback(null, toggle);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setEconomyState(deviceId, toggle, callback) {
+        const parameterValue = this._toggleToParameterValue(toggle);
+        const values = {};
+        values[localConstants.PARAM_ECONOMY] = parameterValue;
+
+        this._setParam(deviceId, values)
+            .then(() => {
+                callback(null, toggle);
+            })
+            .catch(error => callback(error));
+    }
+
+    getEnergySavingFanState(deviceId, callback) {
+        this._getParam(deviceId, localConstants.PARAM_FAN_CTRL)
+            .then(response => {
+                const toggle = this._parameterValueToToggle(response[localConstants.PARAM_FAN_CTRL]);
+                callback(null, toggle);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setEnergySavingFanState(deviceId, toggle, callback) {
+        const parameterValue = this._toggleToParameterValue(toggle);
+        const values = {};
+        values[localConstants.PARAM_FAN_CTRL] = parameterValue;
+
+        this._setParam(deviceId, values)
+            .then(() => {
+                callback(null, toggle);
+            })
+            .catch(error => callback(error));
+    }
+
+    getMinimumHeatState(deviceId, callback) {
+        this._getParam(deviceId, localConstants.PARAM_MIN_HEAT)
+            .then(response => {
+                const toggle = this._parameterValueToToggle(response[localConstants.PARAM_MIN_HEAT]);
+                callback(null, toggle);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setMinimumHeatState(deviceId, toggle, callback) {
+        const parameterValue = this._toggleToParameterValue(toggle);
+        const values = {};
+        values[localConstants.PARAM_MIN_HEAT] = parameterValue;
+
+        this._setParam(deviceId, values)
+            .then(() => {
+                callback(null, toggle);
+            })
+            .catch(error => callback(error));
+    }
+
+    // ===================================================================
+    // Generic Parameter Methods
+    // ===================================================================
+
+    getParameter(deviceId, parameterName, callback) {
+        this._getParam(deviceId, parameterName)
+            .then(response => {
+                callback(null, response[parameterName] || null);
+            })
+            .catch(error => callback(error, null));
+    }
+
+    setParameter(deviceId, parameterName, parameterValue, callback) {
+        const values = {};
+        values[parameterName] = parameterValue;
+
+        this._setParam(deviceId, values)
+            .then(response => {
+                // Return device-like object for compatibility with cloud client pattern
+                callback(null, {
+                    parameters: response
+                });
+            })
+            .catch(error => callback(error));
+    }
+
+    // ===================================================================
+    // Stub Methods (not applicable for local mode)
+    // ===================================================================
+
+    // These methods are not applicable for local mode but included for interface compatibility
+    refreshTokenOrAuthenticate(callback) {
+        callback(null, null);
+    }
+
+    getDevices(callback) {
+        const devices = Array.from(this.devices.values()).map(device => ({
+            deviceId: device.deviceId,
+            name: device.name,
+            ipAddress: device.ipAddress
+        }));
+        callback(null, devices);
+    }
+
+    getTemperatureScale(callback) {
+        // Temperature scale should come from platform config, not device
+        callback(null, airstageConstants.TEMPERATURE_SCALE_CELSIUS);
+    }
+}
+
+module.exports = LocalClient;
