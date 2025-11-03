@@ -29,65 +29,63 @@
                 ],
                 "description": "Choose how to connect to your Airstage devices: Cloud API requires internet and Airstage account, Local LAN connects directly to devices on your network."
             },
-            "localDevices": {
-                "title": "Local LAN Devices",
-                "type": "array",
+            "localDevice": {
+                "title": "Local LAN Device",
+                "type": "object",
                 "condition": {
                     "functionBody": "return model.connectionMode === 'local';"
                 },
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "title": "Device Name",
-                            "type": "string",
-                            "required": true,
-                            "placeholder": "Living Room AC",
-                            "description": "A friendly name for this device."
-                        },
-                        "ipAddress": {
-                            "title": "IP Address",
-                            "type": "string",
-                            "format": "ipv4",
-                            "required": true,
-                            "placeholder": "192.168.1.100",
-                            "description": "The local IP address of the device. Use a static IP or DHCP reservation."
-                        },
-                        "deviceId": {
-                            "title": "Device ID (Optional)",
-                            "type": "string",
-                            "required": false,
-                            "pattern": "^[A-Fa-f0-9]{12}$",
-                            "placeholder": "Auto-detected via ARP",
-                            "description": "12-character device ID (MAC address without colons). Leave empty for automatic detection via ARP."
-                        },
-                        "deviceSubId": {
-                            "title": "Device Sub ID",
-                            "type": "integer",
-                            "default": 0,
-                            "oneOf": [
-                                { "title": "0 (Default - Single Zone)", "enum": [0] },
-                                { "title": "1", "enum": [1] },
-                                { "title": "2", "enum": [2] },
-                                { "title": "3", "enum": [3] },
-                                { "title": "4", "enum": [4] },
-                                { "title": "5", "enum": [5] },
-                                { "title": "6", "enum": [6] },
-                                { "title": "7", "enum": [7] },
-                                { "title": "8", "enum": [8] },
-                                { "title": "9", "enum": [9] },
-                                { "title": "10", "enum": [10] },
-                                { "title": "11", "enum": [11] },
-                                { "title": "12", "enum": [12] },
-                                { "title": "13", "enum": [13] },
-                                { "title": "14", "enum": [14] },
-                                { "title": "15", "enum": [15] }
-                            ],
-                            "description": "For multi-zone systems, specify the indoor unit number (0-15). Use 0 for single-zone systems."
-                        }
+                "properties": {
+                    "name": {
+                        "title": "Device Name",
+                        "type": "string",
+                        "required": true,
+                        "placeholder": "Living Room AC",
+                        "description": "A friendly name for this device."
+                    },
+                    "ipAddress": {
+                        "title": "IP Address",
+                        "type": "string",
+                        "format": "ipv4",
+                        "required": true,
+                        "placeholder": "192.168.1.100",
+                        "description": "The local IP address of the device. Use a static IP or DHCP reservation."
+                    },
+                    "deviceId": {
+                        "title": "Device ID (Optional)",
+                        "type": "string",
+                        "required": false,
+                        "pattern": "^[A-Fa-f0-9]{12}$",
+                        "placeholder": "Auto-detected via ARP",
+                        "description": "12-character device ID (MAC address without colons). Leave empty for automatic detection via ARP."
+                    },
+                    "deviceSubId": {
+                        "title": "Device Sub ID",
+                        "type": "integer",
+                        "required": true,
+                        "default": 0,
+                        "oneOf": [
+                            { "title": "0 (Default - Single Zone)", "enum": [0] },
+                            { "title": "1", "enum": [1] },
+                            { "title": "2", "enum": [2] },
+                            { "title": "3", "enum": [3] },
+                            { "title": "4", "enum": [4] },
+                            { "title": "5", "enum": [5] },
+                            { "title": "6", "enum": [6] },
+                            { "title": "7", "enum": [7] },
+                            { "title": "8", "enum": [8] },
+                            { "title": "9", "enum": [9] },
+                            { "title": "10", "enum": [10] },
+                            { "title": "11", "enum": [11] },
+                            { "title": "12", "enum": [12] },
+                            { "title": "13", "enum": [13] },
+                            { "title": "14", "enum": [14] },
+                            { "title": "15", "enum": [15] }
+                        ],
+                        "description": "For multi-zone systems, specify the indoor unit number (0-15). Use 0 for single-zone systems."
                     }
                 },
-                "description": "Configure your local LAN devices. Each device requires a name and IP address. Device IDs will be auto-detected if not provided."
+                "description": "Configure your local LAN device. Requires a name and IP address. Device ID will be auto-detected if not provided."
             },
             "region": {
                 "title": "Region",

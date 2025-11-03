@@ -10,14 +10,12 @@ const mockHomebridge = new MockHomebridge();
 test('Platform#constructor initializes local mode when connectionMode is local', async (context) => {
     const platformConfig = {
         'connectionMode': 'local',
-        'localDevices': [
-            {
-                'name': 'Test Device',
-                'ipAddress': '192.168.1.100',
-                'deviceId': 'A0B1C2D3E4F5',
-                'deviceSubId': 0
-            }
-        ],
+        'localDevice': {
+            'name': 'Test Device',
+            'ipAddress': '192.168.1.100',
+            'deviceId': 'A0B1C2D3E4F5',
+            'deviceSubId': 0
+        },
         'enableThermostat': true
     };
 
@@ -56,6 +54,56 @@ test('Platform#constructor initializes local mode when connectionMode is local',
     LocalConfigValidator.isValidDeviceIdFormat = origIsValid;
     LocalConfigValidator.isValidIpv4Format = origIsValidIpv4;
     LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
+
+    mockHomebridge.resetMocks();
+});
+
+test('Platform#constructor initializes local mode with device config', async (context) => {
+    const platformConfig = {
+        'connectionMode': 'local',
+        'localDevice': {
+            'name': 'Test Device',
+            'ipAddress': '192.168.1.100',
+            'deviceId': 'A0B1C2D3E4F5',
+            'deviceSubId': 0
+        },
+        'enableThermostat': true
+    };
+
+    // Mock LocalConfigValidator
+    const LocalConfigValidator = require('../src/utils/local-config-validator');
+    const origValidate = LocalConfigValidator.validateDeviceConfig;
+    const origNormalize = LocalConfigValidator.normalizeDeviceId;
+    const origIsValid = LocalConfigValidator.isValidDeviceIdFormat;
+    const origIsValidIpv4 = LocalConfigValidator.isValidIpv4Format;
+    const origCheckHttp = LocalConfigValidator.checkHttpConnectivity;
+
+    LocalConfigValidator.normalizeDeviceId = (id) => id.toUpperCase().replace(/:/g, '');
+    LocalConfigValidator.isValidDeviceIdFormat = () => true;
+    LocalConfigValidator.isValidIpv4Format = () => true;
+    LocalConfigValidator.checkHttpConnectivity = async () => ({ success: true, statusCode: 200 });
+    LocalConfigValidator.validateDeviceConfig = async () => ({ success: true });
+
+    const platform = new Platform(
+        mockHomebridge.platform.log,
+        platformConfig,
+        mockHomebridge.platform.api,
+        false
+    );
+
+    // Wait for async initialization
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    assert.strictEqual(platform.connectionMode, 'local');
+    assert.ok(platform.airstageClient);
+    assert.ok(platform.airstageClient.devices);
+    assert.strictEqual(platform.airstageClient.devices.size, 1);
+    assert.ok(platform.airstageClient.devices.has('A0B1C2D3E4F5'));
+
+    LocalConfigValidator.validateDeviceConfig = origValidate;
+    LocalConfigValidator.normalizeDeviceId = origNormalize;
+    LocalConfigValidator.isValidDeviceIdFormat = origIsValid;
+    LocalConfigValidator.isValidIpv4Format = origIsValidIpv4;
     LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
 
     mockHomebridge.resetMocks();
@@ -111,13 +159,11 @@ test('Platform#constructor initializes cloud mode when connectionMode is cloud',
 test('Platform#_initLocalMode auto-detects device ID when not provided', async (context) => {
     const platformConfig = {
         'connectionMode': 'local',
-        'localDevices': [
-            {
-                'name': 'Test Device',
-                'ipAddress': '192.168.1.100',
-                'deviceSubId': 0
-            }
-        ]
+        'localDevice': {
+            'name': 'Test Device',
+            'ipAddress': '192.168.1.100',
+            'deviceSubId': 0
+        }
     };
 
     // Mock LocalConfigValidator
@@ -154,16 +200,14 @@ test('Platform#_initLocalMode auto-detects device ID when not provided', async (
     mockHomebridge.resetMocks();
 });
 
-test('Platform#_initLocalMode skips devices with missing IP address', async (context) => {
+test('Platform#_initLocalMode fails when device missing IP address', async (context) => {
     const platformConfig = {
         'connectionMode': 'local',
-        'localDevices': [
-            {
-                'name': 'Test Device',
-                'deviceId': 'A0B1C2D3E4F5'
-                // Missing ipAddress
-            }
-        ]
+        'localDevice': {
+            'name': 'Test Device',
+            'deviceId': 'A0B1C2D3E4F5'
+            // Missing ipAddress
+        }
     };
 
     // Mock LocalConfigValidator to prevent any rejections
@@ -183,8 +227,7 @@ test('Platform#_initLocalMode skips devices with missing IP address', async (con
     await new Promise(resolve => setTimeout(resolve, 150));
 
     assert.strictEqual(platform.connectionMode, 'local');
-    // Should not have initialized client due to no valid devices (missing IP)
-    // In this case, airstageClient is undefined because no devices were validated
+    // Should not have initialized client due to missing IP address
     assert.ok(!platform.airstageClient);
 
     LocalConfigValidator.validateDeviceConfig = origValidate;
@@ -192,17 +235,15 @@ test('Platform#_initLocalMode skips devices with missing IP address', async (con
     mockHomebridge.resetMocks();
 });
 
-test('Platform#_initLocalMode skips devices that fail validation', async (context) => {
+test('Platform#_initLocalMode fails when device validation fails', async (context) => {
     const platformConfig = {
         'connectionMode': 'local',
-        'localDevices': [
-            {
-                'name': 'Test Device',
-                'ipAddress': '192.168.1.100',
-                'deviceId': 'A0B1C2D3E4F5',
-                'deviceSubId': 0
-            }
-        ]
+        'localDevice': {
+            'name': 'Test Device',
+            'ipAddress': '192.168.1.100',
+            'deviceId': 'A0B1C2D3E4F5',
+            'deviceSubId': 0
+        }
     };
 
     // Mock LocalConfigValidator
@@ -234,13 +275,12 @@ test('Platform#_initLocalMode skips devices that fail validation', async (contex
 
     assert.strictEqual(platform.connectionMode, 'local');
     // Should not have initialized client due to validation failure
-    assert.ok(!platform.airstageClient || platform.airstageClient.devices.size === 0);
+    assert.ok(!platform.airstageClient);
 
     LocalConfigValidator.validateDeviceConfig = origValidate;
     LocalConfigValidator.normalizeDeviceId = origNormalize;
     LocalConfigValidator.isValidDeviceIdFormat = origIsValid;
     LocalConfigValidator.isValidIpv4Format = origIsValidIpv4;
-    LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
     LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
 
     mockHomebridge.resetMocks();
@@ -249,14 +289,12 @@ test('Platform#_initLocalMode skips devices that fail validation', async (contex
 test('Platform#discoverDevices calls _discoverLocalDevices in local mode', async (context) => {
     const platformConfig = {
         'connectionMode': 'local',
-        'localDevices': [
-            {
-                'name': 'Test Device',
-                'ipAddress': '192.168.1.100',
-                'deviceId': 'A0B1C2D3E4F5',
-                'deviceSubId': 0
-            }
-        ]
+        'localDevice': {
+            'name': 'Test Device',
+            'ipAddress': '192.168.1.100',
+            'deviceId': 'A0B1C2D3E4F5',
+            'deviceSubId': 0
+        }
     };
 
     // Mock LocalConfigValidator
@@ -343,14 +381,12 @@ test('Platform#discoverDevices calls _discoverCloudDevices in cloud mode', (cont
 test('Platform#_initLocalMode normalizes device IDs to uppercase', async (context) => {
     const platformConfig = {
         'connectionMode': 'local',
-        'localDevices': [
-            {
-                'name': 'Test Device',
-                'ipAddress': '192.168.1.100',
-                'deviceId': 'a0:b1:c2:d3:e4:f5',  // lowercase with colons
-                'deviceSubId': 0
-            }
-        ]
+        'localDevice': {
+            'name': 'Test Device',
+            'ipAddress': '192.168.1.100',
+            'deviceId': 'a0:b1:c2:d3:e4:f5',  // lowercase with colons
+            'deviceSubId': 0
+        }
     };
 
     // Mock LocalConfigValidator
