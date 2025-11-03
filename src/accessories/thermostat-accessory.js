@@ -262,7 +262,7 @@ class ThermostatAccessory extends Accessory {
 
         this._logMethodCall(methodName);
 
-        this.platform.log.info(`[Thermostat] Requesting indoor temperature with scale: ${airstage.constants.TEMPERATURE_SCALE_CELSIUS}`);
+        this.platform.log.debug(`[Thermostat] Requesting indoor temperature with scale: ${airstage.constants.TEMPERATURE_SCALE_CELSIUS}`);
 
         this.airstageClient.getIndoorTemperature(
             this.deviceId,
@@ -274,7 +274,7 @@ class ThermostatAccessory extends Accessory {
                     return callback(error, null);
                 }
 
-                this.platform.log.info(`[Thermostat] Received indoor temperature from client: ${indoorTemperature}°C`);
+                this.platform.log.debug(`[Thermostat] Received indoor temperature from client: ${indoorTemperature}°C`);
                 this._logMethodCallResult(methodName, null, indoorTemperature);
 
                 callback(null, indoorTemperature);
@@ -287,7 +287,7 @@ class ThermostatAccessory extends Accessory {
 
         this._logMethodCall(methodName);
 
-        this.platform.log.info(`[Thermostat] Requesting target temperature with scale: ${airstage.constants.TEMPERATURE_SCALE_CELSIUS}`);
+        this.platform.log.debug(`[Thermostat] Requesting target temperature with scale: ${airstage.constants.TEMPERATURE_SCALE_CELSIUS}`);
 
         this.airstageClient.getTargetTemperature(
             this.deviceId,
@@ -299,7 +299,7 @@ class ThermostatAccessory extends Accessory {
                     return callback(error, null);
                 }
 
-                this.platform.log.info(`[Thermostat] Received target temperature from client: ${targetTemperature}°C`);
+                this.platform.log.debug(`[Thermostat] Received target temperature from client: ${targetTemperature}°C`);
                 this._logMethodCallResult(methodName, null, targetTemperature);
 
                 callback(null, targetTemperature);
@@ -312,7 +312,7 @@ class ThermostatAccessory extends Accessory {
 
         this._logMethodCall(methodName, value);
 
-        this.platform.log.info(`[Thermostat] Setting target temperature - iOS sent: ${value}°C, requesting from client with scale: ${airstage.constants.TEMPERATURE_SCALE_CELSIUS}`);
+        this.platform.log.debug(`[Thermostat] Setting target temperature - iOS sent: ${value}°C, requesting from client with scale: ${airstage.constants.TEMPERATURE_SCALE_CELSIUS}`);
 
         this.airstageClient.setTargetTemperature(
             this.deviceId,
@@ -320,13 +320,13 @@ class ThermostatAccessory extends Accessory {
             airstage.constants.TEMPERATURE_SCALE_CELSIUS,
             (function (error, setTemperature) {
                 if (error) {
-                    this.platform.log.info(`[Thermostat] Set target temperature failed: ${error.message}`);
+                    this.platform.log.debug(`[Thermostat] Set target temperature failed: ${error.message}`);
                     this._logMethodCallResult(methodName, error);
 
                     return callback(error);
                 }
 
-                this.platform.log.info(`[Thermostat] Set target temperature completed successfully, value: ${setTemperature}°C`);
+                this.platform.log.debug(`[Thermostat] Set target temperature completed successfully, value: ${setTemperature}°C`);
                 this._logMethodCallResult(methodName, null, null);
 
                 callback(null);
@@ -336,7 +336,7 @@ class ThermostatAccessory extends Accessory {
                 this.service.getCharacteristic(this.Characteristic.TargetTemperature)
                     .updateValue(setTemperature);
 
-                this.platform.log.info(`[Thermostat] Optimistically updated TargetTemperature characteristic to ${setTemperature}°C`);
+                this.platform.log.debug(`[Thermostat] Optimistically updated TargetTemperature characteristic to ${setTemperature}°C`);
             }).bind(this)
         );
     }
@@ -356,14 +356,14 @@ class ThermostatAccessory extends Accessory {
                     return callback(error, null);
                 }
 
-                this.platform.log.info(`[Thermostat] Client temperature scale: ${temperatureScale}`);
+                this.platform.log.debug(`[Thermostat] Client temperature scale: ${temperatureScale}`);
 
                 if (temperatureScale === airstage.constants.TEMPERATURE_SCALE_CELSIUS) {
                     temperatureDisplayUnits = this.Characteristic.TemperatureDisplayUnits.CELSIUS;
-                    this.platform.log.info(`[Thermostat] Mapped to HomeKit: CELSIUS`);
+                    this.platform.log.debug(`[Thermostat] Mapped to HomeKit: CELSIUS`);
                 } else if (temperatureScale === airstage.constants.TEMPERATURE_SCALE_FAHRENHEIT) {
                     temperatureDisplayUnits = this.Characteristic.TemperatureDisplayUnits.FAHRENHEIT;
-                    this.platform.log.info(`[Thermostat] Mapped to HomeKit: FAHRENHEIT`);
+                    this.platform.log.debug(`[Thermostat] Mapped to HomeKit: FAHRENHEIT`);
                 }
 
                 this._logMethodCallResult(methodName, null, temperatureDisplayUnits);

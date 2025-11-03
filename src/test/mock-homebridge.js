@@ -90,8 +90,8 @@ const mockPlatform = {
         'debug': mock.fn(() => {}),
         'error': mock.fn(() => {}),
         'info': mock.fn(() => {}),
-        'warn': mock.fn(() => {})
-        // Note: 'success' is intentionally omitted to test the polyfill in platform.js
+        'warn': mock.fn(() => {}),
+        'success': mock.fn(() => {})
     }
 };
 
@@ -117,7 +117,7 @@ class MockHomebridge {
         mockPlatform.log.error.mock.resetCalls();
         mockPlatform.log.info.mock.resetCalls();
         mockPlatform.log.warn.mock.resetCalls();
-        // log.success is set via polyfill, no need to reset
+        mockPlatform.log.success.mock.resetCalls();
         mockPlatform.accessories = [];
     }
 }

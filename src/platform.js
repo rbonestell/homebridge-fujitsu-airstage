@@ -154,7 +154,8 @@ class Platform {
             null,
             tokens.accessToken || null,
             tokens.accessTokenExpiry || null,
-            tokens.refreshToken || null
+            tokens.refreshToken || null,
+            this.log
         );
 
         // Only set up cache refresh intervals for cloud mode
