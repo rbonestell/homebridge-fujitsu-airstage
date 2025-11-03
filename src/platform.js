@@ -65,6 +65,30 @@ class Platform {
 
             this.log.info(`Validating device: ${device.name} (${device.ipAddress})`);
 
+            // Validate IPv4 format
+            if (!LocalConfigValidator.isValidIpv4Format(device.ipAddress)) {
+                this.log.warn(`✗ ${device.name} has invalid IPv4 address format: ${device.ipAddress}`);
+                this.log.warn(`  Expected format: xxx.xxx.xxx.xxx (e.g., 192.168.1.100)`);
+                continue;
+            }
+
+            // Check HTTP connectivity (populates ARP table)
+            this.log.info(`Checking connectivity to ${device.name}...`);
+            const connectivityCheck = await LocalConfigValidator.checkHttpConnectivity(device.ipAddress);
+
+            if (!connectivityCheck.success) {
+                this.log.warn(`✗ Cannot reach ${device.name} at ${device.ipAddress}`);
+                this.log.warn(`  Error: ${connectivityCheck.error}`);
+                this.log.warn(`  Troubleshooting:`);
+                this.log.warn(`    • Verify device is powered on and connected to network`);
+                this.log.warn(`    • Check that IP address is correct`);
+                this.log.warn(`    • Ensure device is on the same network/subnet`);
+                this.log.warn(`    • Verify no firewall is blocking HTTP traffic`);
+                continue;
+            }
+
+            this.log.success(`✓ Device is reachable via HTTP (status: ${connectivityCheck.statusCode})`);
+
             try {
                 // Auto-detect device ID if not provided or normalize to UPPERCASE
                 let deviceId = device.deviceId;

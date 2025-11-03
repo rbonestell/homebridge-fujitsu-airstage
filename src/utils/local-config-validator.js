@@ -10,6 +10,73 @@ const http = require('http');
 class LocalConfigValidator {
 
     /**
+     * Validate IPv4 address format
+     * Prevents command injection and provides early error detection
+     *
+     * @param {string} ipAddress - IP address to validate
+     * @returns {boolean} - True if valid IPv4 format
+     */
+    static isValidIpv4Format(ipAddress) {
+        if (!ipAddress || typeof ipAddress !== 'string') {
+            return false;
+        }
+
+        // Strict IPv4 validation: xxx.xxx.xxx.xxx where each octet is 0-255
+        const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+        return ipv4Regex.test(ipAddress);
+    }
+
+    /**
+     * Check HTTP connectivity to device
+     * Makes simple GET request to http://ipAddress/ to verify reachability
+     * Side effect: Populates ARP table with device MAC address
+     *
+     * @param {string} ipAddress - IP address to check
+     * @param {number} timeout - Timeout in milliseconds (default: 5000)
+     * @returns {Promise<Object>} - { success: boolean, statusCode?: number, error?: string }
+     */
+    static async checkHttpConnectivity(ipAddress, timeout = 5000) {
+        return new Promise((resolve) => {
+            const options = {
+                hostname: ipAddress,
+                port: 80,
+                path: '/',
+                method: 'GET',
+                timeout: timeout
+            };
+
+            const req = http.request(options, (res) => {
+                // Any response (even 404) means device is reachable
+                // We just want to confirm HTTP connectivity
+                resolve({
+                    success: true,
+                    statusCode: res.statusCode
+                });
+
+                // Consume response data to free memory
+                res.on('data', () => {});
+            });
+
+            req.on('error', (error) => {
+                resolve({
+                    success: false,
+                    error: error.message || 'Connection failed'
+                });
+            });
+
+            req.on('timeout', () => {
+                req.destroy();
+                resolve({
+                    success: false,
+                    error: 'Connection timeout - device may be offline or unreachable'
+                });
+            });
+
+            req.end();
+        });
+    }
+
+    /**
      * Detect device ID from IP address using ARP
      * Returns device ID in UPPERCASE format (12-character hex string without colons)
      *
@@ -23,7 +90,7 @@ class LocalConfigValidator {
                     return resolve({
                         success: false,
                         error: `ARP lookup failed: ${error.message || error}`,
-                        details: 'The ARP table may not contain this IP address. Ensure the device is powered on, connected to the network, and reachable via ping.'
+                        details: 'The ARP table may not contain this IP address. This is unexpected as HTTP connectivity was confirmed. Try manually adding the device ID (MAC address) to your config.'
                     });
                 }
 
@@ -31,7 +98,7 @@ class LocalConfigValidator {
                     return resolve({
                         success: false,
                         error: 'No MAC address found in ARP table',
-                        details: `The IP address ${ipAddress} is not in the ARP cache. Try pinging the device first: ping ${ipAddress}`
+                        details: `The IP address ${ipAddress} is not in the ARP cache. This is unexpected as HTTP connectivity was confirmed. Try manually adding the device ID (MAC address) to your config.`
                     });
                 }
 

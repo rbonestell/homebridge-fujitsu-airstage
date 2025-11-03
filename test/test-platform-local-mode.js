@@ -26,9 +26,13 @@ test('Platform#constructor initializes local mode when connectionMode is local',
     const origValidate = LocalConfigValidator.validateDeviceConfig;
     const origNormalize = LocalConfigValidator.normalizeDeviceId;
     const origIsValid = LocalConfigValidator.isValidDeviceIdFormat;
+    const origIsValidIpv4 = LocalConfigValidator.isValidIpv4Format;
+    const origCheckHttp = LocalConfigValidator.checkHttpConnectivity;
 
     LocalConfigValidator.normalizeDeviceId = (id) => id.toUpperCase().replace(/:/g, '');
     LocalConfigValidator.isValidDeviceIdFormat = () => true;
+    LocalConfigValidator.isValidIpv4Format = () => true;
+    LocalConfigValidator.checkHttpConnectivity = async () => ({ success: true, statusCode: 200 });
     LocalConfigValidator.validateDeviceConfig = async () => ({ success: true });
 
     const platform = new Platform(
@@ -50,6 +54,9 @@ test('Platform#constructor initializes local mode when connectionMode is local',
     LocalConfigValidator.validateDeviceConfig = origValidate;
     LocalConfigValidator.normalizeDeviceId = origNormalize;
     LocalConfigValidator.isValidDeviceIdFormat = origIsValid;
+    LocalConfigValidator.isValidIpv4Format = origIsValidIpv4;
+    LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
+    LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
 
     mockHomebridge.resetMocks();
 });
@@ -117,9 +124,13 @@ test('Platform#_initLocalMode auto-detects device ID when not provided', async (
     const LocalConfigValidator = require('../src/utils/local-config-validator');
     const origDetect = LocalConfigValidator.detectDeviceId;
     const origValidate = LocalConfigValidator.validateDeviceConfig;
+    const origIsValidIpv4 = LocalConfigValidator.isValidIpv4Format;
+    const origCheckHttp = LocalConfigValidator.checkHttpConnectivity;
 
     LocalConfigValidator.detectDeviceId = async () => ({ success: true, deviceId: 'A0B1C2D3E4F5' });
     LocalConfigValidator.validateDeviceConfig = async () => ({ success: true });
+    LocalConfigValidator.isValidIpv4Format = () => true;
+    LocalConfigValidator.checkHttpConnectivity = async () => ({ success: true, statusCode: 200 });
 
     const platform = new Platform(
         mockHomebridge.platform.log,
@@ -137,6 +148,8 @@ test('Platform#_initLocalMode auto-detects device ID when not provided', async (
 
     LocalConfigValidator.detectDeviceId = origDetect;
     LocalConfigValidator.validateDeviceConfig = origValidate;
+    LocalConfigValidator.isValidIpv4Format = origIsValidIpv4;
+    LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
 
     mockHomebridge.resetMocks();
 });
@@ -197,9 +210,13 @@ test('Platform#_initLocalMode skips devices that fail validation', async (contex
     const origValidate = LocalConfigValidator.validateDeviceConfig;
     const origNormalize = LocalConfigValidator.normalizeDeviceId;
     const origIsValid = LocalConfigValidator.isValidDeviceIdFormat;
+    const origIsValidIpv4 = LocalConfigValidator.isValidIpv4Format;
+    const origCheckHttp = LocalConfigValidator.checkHttpConnectivity;
 
     LocalConfigValidator.normalizeDeviceId = (id) => id.toUpperCase();
     LocalConfigValidator.isValidDeviceIdFormat = () => true;
+    LocalConfigValidator.isValidIpv4Format = () => true;
+    LocalConfigValidator.checkHttpConnectivity = async () => ({ success: true, statusCode: 200 });
     LocalConfigValidator.validateDeviceConfig = async () => ({
         success: false,
         error: 'Device offline'
@@ -222,6 +239,9 @@ test('Platform#_initLocalMode skips devices that fail validation', async (contex
     LocalConfigValidator.validateDeviceConfig = origValidate;
     LocalConfigValidator.normalizeDeviceId = origNormalize;
     LocalConfigValidator.isValidDeviceIdFormat = origIsValid;
+    LocalConfigValidator.isValidIpv4Format = origIsValidIpv4;
+    LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
+    LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
 
     mockHomebridge.resetMocks();
 });
@@ -244,9 +264,13 @@ test('Platform#discoverDevices calls _discoverLocalDevices in local mode', async
     const origValidate = LocalConfigValidator.validateDeviceConfig;
     const origNormalize = LocalConfigValidator.normalizeDeviceId;
     const origIsValid = LocalConfigValidator.isValidDeviceIdFormat;
+    const origIsValidIpv4 = LocalConfigValidator.isValidIpv4Format;
+    const origCheckHttp = LocalConfigValidator.checkHttpConnectivity;
 
     LocalConfigValidator.normalizeDeviceId = (id) => id.toUpperCase().replace(/:/g, '');
     LocalConfigValidator.isValidDeviceIdFormat = () => true;
+    LocalConfigValidator.isValidIpv4Format = () => true;
+    LocalConfigValidator.checkHttpConnectivity = async () => ({ success: true, statusCode: 200 });
     LocalConfigValidator.validateDeviceConfig = async () => ({ success: true });
 
     const platform = new Platform(
@@ -275,6 +299,9 @@ test('Platform#discoverDevices calls _discoverLocalDevices in local mode', async
     LocalConfigValidator.validateDeviceConfig = origValidate;
     LocalConfigValidator.normalizeDeviceId = origNormalize;
     LocalConfigValidator.isValidDeviceIdFormat = origIsValid;
+    LocalConfigValidator.isValidIpv4Format = origIsValidIpv4;
+    LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
+    LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
 
     mockHomebridge.resetMocks();
 });
@@ -331,9 +358,13 @@ test('Platform#_initLocalMode normalizes device IDs to uppercase', async (contex
     const origValidate = LocalConfigValidator.validateDeviceConfig;
     const origNormalize = LocalConfigValidator.normalizeDeviceId;
     const origIsValid = LocalConfigValidator.isValidDeviceIdFormat;
+    const origIsValidIpv4 = LocalConfigValidator.isValidIpv4Format;
+    const origCheckHttp = LocalConfigValidator.checkHttpConnectivity;
 
     LocalConfigValidator.normalizeDeviceId = (id) => id.toUpperCase().replace(/:/g, '');
     LocalConfigValidator.isValidDeviceIdFormat = () => true;
+    LocalConfigValidator.isValidIpv4Format = () => true;
+    LocalConfigValidator.checkHttpConnectivity = async () => ({ success: true, statusCode: 200 });
     LocalConfigValidator.validateDeviceConfig = async (ip, id) => {
         // Should receive uppercase ID without colons
         assert.strictEqual(id, 'A0B1C2D3E4F5');
@@ -359,6 +390,8 @@ test('Platform#_initLocalMode normalizes device IDs to uppercase', async (contex
     LocalConfigValidator.validateDeviceConfig = origValidate;
     LocalConfigValidator.normalizeDeviceId = origNormalize;
     LocalConfigValidator.isValidDeviceIdFormat = origIsValid;
+    LocalConfigValidator.isValidIpv4Format = origIsValidIpv4;
+    LocalConfigValidator.checkHttpConnectivity = origCheckHttp;
 
     mockHomebridge.resetMocks();
 });

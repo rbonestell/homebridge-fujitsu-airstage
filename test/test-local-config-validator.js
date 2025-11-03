@@ -116,7 +116,7 @@ test('LocalConfigValidator#detectDeviceId returns error when MAC not in ARP cach
 
     assert.strictEqual(result.success, false);
     assert.ok(result.error.includes('No MAC address found in ARP table'));
-    assert.ok(result.details.includes('ping 192.168.1.100'));
+    assert.ok(result.details.includes('HTTP connectivity was confirmed'));
 
     arp.getMAC = origGetMAC;
 });
@@ -262,4 +262,130 @@ test('LocalConfigValidator#isValidDeviceIdFormat validates correct format', () =
     assert.strictEqual(LocalConfigValidator.isValidDeviceIdFormat('invalid'), false);
     assert.strictEqual(LocalConfigValidator.isValidDeviceIdFormat('A0B1C2D3E4F'), false);
     assert.strictEqual(LocalConfigValidator.isValidDeviceIdFormat('G0B1C2D3E4F5'), false);
+});
+
+test('LocalConfigValidator#isValidIpv4Format validates valid IPv4 addresses', () => {
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('192.168.1.1'), true);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('10.0.0.1'), true);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('172.16.254.1'), true);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('127.0.0.1'), true);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('255.255.255.255'), true);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('0.0.0.0'), true);
+});
+
+test('LocalConfigValidator#isValidIpv4Format rejects invalid IPv4 addresses', () => {
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('256.1.1.1'), false);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('999.999.999.999'), false);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('192.168.1'), false);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('192.168.1.1.1'), false);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('hello'), false);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format('192.168.1.a'), false);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format(''), false);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format(null), false);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format(undefined), false);
+    assert.strictEqual(LocalConfigValidator.isValidIpv4Format(12345), false);
+});
+
+test('LocalConfigValidator#checkHttpConnectivity returns success on reachable host', async () => {
+    const http = require('http');
+    const origRequest = http.request;
+
+    http.request = (options, callback) => {
+        const mockResponse = {
+            statusCode: 200,
+            on: () => {}
+        };
+
+        setTimeout(() => callback(mockResponse), 0);
+
+        return {
+            on: () => {},
+            end: () => {}
+        };
+    };
+
+    const result = await LocalConfigValidator.checkHttpConnectivity('192.168.1.100');
+
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(result.statusCode, 200);
+    assert.strictEqual(result.error, undefined);
+
+    http.request = origRequest;
+});
+
+test('LocalConfigValidator#checkHttpConnectivity accepts any HTTP status code', async () => {
+    const http = require('http');
+    const origRequest = http.request;
+
+    http.request = (options, callback) => {
+        const mockResponse = {
+            statusCode: 404,
+            on: () => {}
+        };
+
+        setTimeout(() => callback(mockResponse), 0);
+
+        return {
+            on: () => {},
+            end: () => {}
+        };
+    };
+
+    const result = await LocalConfigValidator.checkHttpConnectivity('192.168.1.100');
+
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(result.statusCode, 404);
+
+    http.request = origRequest;
+});
+
+test('LocalConfigValidator#checkHttpConnectivity returns error on connection failure', async () => {
+    const http = require('http');
+    const origRequest = http.request;
+
+    http.request = (options, callback) => {
+        const mockRequest = {
+            on: (event, handler) => {
+                if (event === 'error') {
+                    setTimeout(() => handler(new Error('ECONNREFUSED')), 0);
+                }
+            },
+            end: () => {}
+        };
+
+        return mockRequest;
+    };
+
+    const result = await LocalConfigValidator.checkHttpConnectivity('192.168.1.100');
+
+    assert.strictEqual(result.success, false);
+    assert.ok(result.error.includes('ECONNREFUSED'));
+
+    http.request = origRequest;
+});
+
+test('LocalConfigValidator#checkHttpConnectivity returns error on timeout', async () => {
+    const http = require('http');
+    const origRequest = http.request;
+
+    http.request = (options, callback) => {
+        const mockRequest = {
+            on: (event, handler) => {
+                if (event === 'timeout') {
+                    setTimeout(() => handler(), 0);
+                }
+            },
+            destroy: () => {},
+            end: () => {}
+        };
+
+        return mockRequest;
+    };
+
+    const result = await LocalConfigValidator.checkHttpConnectivity('192.168.1.100');
+
+    assert.strictEqual(result.success, false);
+    assert.ok(result.error.includes('timeout'));
+
+    http.request = origRequest;
 });
