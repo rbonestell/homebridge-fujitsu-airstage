@@ -194,7 +194,7 @@ class LocalClient {
         }
 
         const paramList = Array.isArray(parameters) ? parameters : [parameters];
-        this._log('debug', `[Local] GET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Parameters: ${paramList.join(', ')}`);
+        this._log('info', `[Local] GET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Parameters: ${paramList.join(', ')}`);
 
         const payload = {
             device_id: device.deviceId,
@@ -210,7 +210,7 @@ class LocalClient {
 
         // Log parameter values in a readable format
         const resultValues = paramList.map(param => `${param}=${result[param]}`).join(', ');
-        this._log('debug', `[Local] GET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Values: ${resultValues}`);
+        this._log('info', `[Local] GET ${device.name} (${device.deviceId} @ ${device.ipAddress}) - Values: ${resultValues}`);
 
         return result;
     }
