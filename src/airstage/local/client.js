@@ -21,7 +21,7 @@ class LocalClient {
         this.maxConcurrentRequests = 2; // Limit concurrent requests to prevent device overload
         this.requestDelay = 100; // Minimum delay between requests (ms)
 
-        // Store devices with UPPERCASE device IDs
+        // Store devices with UPPERCASE device IDs and health tracking
         if (Array.isArray(devices)) {
             devices.forEach(device => {
                 const deviceId = device.deviceId.toUpperCase();
@@ -29,10 +29,84 @@ class LocalClient {
                     deviceId: deviceId,
                     ipAddress: device.ipAddress,
                     deviceSubId: device.deviceSubId || 0,
-                    name: device.name || deviceId
+                    name: device.name || deviceId,
+                    // Health tracking for graceful fault handling
+                    isReachable: true,
+                    consecutiveFailures: 0,
+                    lastSuccessfulRequest: Date.now(),
+                    lastFailureTime: null,
+                    lastError: null
                 });
             });
         }
+    }
+
+    // ===================================================================
+    // Device Health & Circuit Breaker Methods
+    // ===================================================================
+
+    /**
+     * Update device health status based on request outcome
+     */
+    _updateDeviceHealth(deviceId, success, error = null) {
+        const device = this.devices.get(deviceId.toUpperCase());
+        if (!device) return;
+
+        if (success) {
+            device.isReachable = true;
+            device.consecutiveFailures = 0;
+            device.lastSuccessfulRequest = Date.now();
+            device.lastError = null;
+
+            this.logger?.debug(`[Local] ${device.name} is healthy`);
+        } else {
+            device.consecutiveFailures++;
+            device.lastFailureTime = Date.now();
+            device.lastError = error?.message || 'Unknown error';
+
+            // Mark unreachable after 3 consecutive failures
+            if (device.consecutiveFailures >= 3) {
+                if (device.isReachable) {
+                    device.isReachable = false;
+                    this.logger?.warn(`[Local] ${device.name} marked as UNREACHABLE after ${device.consecutiveFailures} failures`);
+                    this.logger?.warn(`[Local] Last error: ${device.lastError}`);
+
+                    // Notify accessories about device unreachability
+                    this._notifyDeviceUnreachable(deviceId);
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if device should accept requests (circuit breaker)
+     */
+    _canMakeRequest(deviceId) {
+        const device = this.devices.get(deviceId.toUpperCase());
+        if (!device) return false;
+
+        // If device is reachable, allow request
+        if (device.isReachable) return true;
+
+        // If unreachable, check if enough time has passed for retry (60 seconds)
+        const timeSinceFailure = Date.now() - device.lastFailureTime;
+        const RETRY_DELAY = 60000; // 1 minute
+
+        if (timeSinceFailure >= RETRY_DELAY) {
+            this.logger?.info(`[Local] Attempting to reconnect to ${device.name}...`);
+            return true; // Allow retry attempt
+        }
+
+        return false; // Still in circuit breaker state
+    }
+
+    /**
+     * Notify accessories that device is unreachable (stub for future event system)
+     */
+    _notifyDeviceUnreachable(deviceId) {
+        // Placeholder for future implementation
+        // Could emit events or directly update accessory StatusFault
+        this.logger?.debug(`[Local] Device ${deviceId} unreachable notification triggered`);
     }
 
     /**
@@ -166,12 +240,40 @@ class LocalClient {
     }
 
     /**
-     * Make HTTP POST request to device (automatically queued)
-     * This is the public-facing method that handles queuing transparently
+     * Make HTTP POST request to device (automatically queued with circuit breaker)
+     * This is the public-facing method that handles queuing and health tracking
      */
     _makeRequest(deviceId, endpoint, payload) {
+        const normalizedId = deviceId.toUpperCase();
+        const device = this.devices.get(normalizedId);
+
+        // If device doesn't exist, let _makeRawRequest handle the error
+        if (!device) {
+            return this._queueRequest(() =>
+                this._makeRawRequest(normalizedId, endpoint, payload)
+            );
+        }
+
+        // Circuit breaker check for known devices
+        if (!this._canMakeRequest(normalizedId)) {
+            const timeUntilRetry = Math.ceil((60000 - (Date.now() - device.lastFailureTime)) / 1000);
+            return Promise.reject(new Error(
+                `Device ${device.name} is currently unreachable. ` +
+                `Last error: ${device.lastError || 'Unknown'}. ` +
+                `Will retry in ${timeUntilRetry}s`
+            ));
+        }
+
         return this._queueRequest(() =>
-            this._makeRawRequest(deviceId, endpoint, payload)
+            this._makeRawRequest(normalizedId, endpoint, payload)
+                .then(result => {
+                    this._updateDeviceHealth(normalizedId, true);
+                    return result;
+                })
+                .catch(error => {
+                    this._updateDeviceHealth(normalizedId, false, error);
+                    throw error;
+                })
         );
     }
 
@@ -707,6 +809,29 @@ class LocalClient {
                 callback(null, toggle);
             })
             .catch(error => callback(error));
+    }
+
+    // ===================================================================
+    // Device Health Status Methods
+    // ===================================================================
+
+    /**
+     * Get device reachability status
+     */
+    getDeviceStatus(deviceId, callback) {
+        const device = this.devices.get(deviceId.toUpperCase());
+
+        if (!device) {
+            return callback(new Error(`Device ${deviceId} not found`), null);
+        }
+
+        callback(null, {
+            isReachable: device.isReachable,
+            consecutiveFailures: device.consecutiveFailures,
+            lastSuccessfulRequest: device.lastSuccessfulRequest,
+            lastError: device.lastError,
+            timeSinceLastSuccess: Date.now() - device.lastSuccessfulRequest
+        });
     }
 
     // ===================================================================
