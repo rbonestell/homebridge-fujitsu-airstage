@@ -136,7 +136,7 @@ In the Homebridge UI, select **"Local LAN (Direct)"** as the connection mode and
 
 - **Device ID**: 12-character device ID (MAC address without colons)
   - If left empty, the plugin will attempt to auto-detect via ARP
-  - Example: `A1B2C3D4E5F6`
+  - Example: `A0B1C2D3E4F5`
 - **Device Sub ID**: For multi-zone systems, specify the indoor unit number (0-15)
   - Use `0` for single-zone systems (default)
   - Use `1-15` for specific zones in multi-zone systems
@@ -237,7 +237,7 @@ You'll need to create separate Homebridge platform instances for each zone.
 - Manually specify the Device ID (12-character MAC address without colons)
 - Check your router for the device's MAC address
 - Use a network scanner to find the device's MAC address
-- Format: All uppercase, no colons or dashes (e.g., `A1B2C3D4E5F6`)
+- Format: All uppercase, no colons or dashes (e.g., `A0B1C2D3E4F5`)
 
 ### Advantages
 

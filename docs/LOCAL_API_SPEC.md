@@ -14,8 +14,6 @@ This spec has been derived from [pyairstage](https://github.com/danielkaldheim/p
 - **Format:** JSON request/response
 - **Authentication:** None
 
----
-
 ## Device Identification
 
 ### Device ID Format
@@ -24,10 +22,10 @@ This spec has been derived from [pyairstage](https://github.com/danielkaldheim/p
 
 **Examples:**
 
-- MAC: `A0:B1:C2:D3:E4:F5` → Device ID: `a0b1c2d3e4f5`
-- MAC: `CC:47:40:09:03:2B` → Device ID: `cc474009032b`
+- MAC: `A0:B1:C2:D3:E4:F5` → Device ID: `A0B1C2D3E4F5`
+- MAC: `CC:47:40:09:03:2B` → Device ID: `CC474009032B`
 
-**Case:** Lowercase recommended
+**Case:** Uppercase recommended (plugin normalizes to uppercase internally)
 
 ### Device ID Discovery
 
@@ -42,8 +40,6 @@ Extract from router ARP/DHCP table, remove colons, convert to lowercase
 **Type:** Integer
 **Default:** `0`
 **Range:** `0-15` (for multi-zone systems)
-
----
 
 ## HTTP API Endpoints
 
@@ -66,7 +62,7 @@ http://{device_ip}/SetParam
 
 ```json
 {
-  "device_id": "a0b1c2d3e4f5",
+  "device_id": "A0B1C2D3E4F5",
   "device_sub_id": 0,
   "req_id": "",
   "modified_by": "",
@@ -123,7 +119,7 @@ http://{device_ip}/SetParam
 
 ```json
 {
-  "device_id": "a0b1c2d3e4f5",
+  "device_id": "A0B1C2D3E4F5",
   "device_sub_id": 0,
   "req_id": "",
   "modified_by": "",
@@ -165,8 +161,6 @@ http://{device_ip}/SetParam
   "error": "0002"
 }
 ```
-
----
 
 ## Parameters
 
@@ -324,8 +318,6 @@ The following parameters may be available on some models:
 | `iu_af_vertical`   | R/W       | Airflow vertical direction   |
 | `iu_af_horizontal` | R/W       | Airflow horizontal direction |
 
----
-
 ## Error Handling
 
 ### Error Response Format
@@ -378,8 +370,6 @@ async function requestWithRetry(url, payload, attempt = 1) {
   }
 }
 ```
-
----
 
 ## Reference Implementation
 
@@ -490,7 +480,7 @@ class AirstageLocalClient {
 
 // Usage example
 async function example() {
-  const client = new AirstageLocalClient("192.168.1.100", "a0b1c2d3e4f5");
+  const client = new AirstageLocalClient("192.168.1.100", "A0B1C2D3E4F5");
 
   // Get device status
   const status = await client.getParam([
@@ -521,23 +511,92 @@ async function example() {
 }
 ```
 
----
-
 ## Compatible Hardware
 
-| Model      | Type                            |
-| ---------- | ------------------------------- |
-| UTY-TFSXJ3 | Wireless WLAN Adapter (CN Type) |
-| UTY-TFSXJ4 | Wireless WLAN Adapter (CN Type) |
-| UTY-TFSXW1 | Wireless LAN Adapter            |
-| UTY-TFSXH3 | Wireless LAN Adapter            |
-| UTY-TFSXH4 | Wireless LAN Adapter            |
-| WH3E       | Wall-mounted Module             |
-| WJ3E       | Ducted Unit Module              |
+All Fujitsu wireless LAN adapters use the **same local HTTP API protocol** documented in this specification.
 
-All adapters use the same protocol.
+### Verified Compatible Models
 
----
+The following models have been **confirmed** to work with this local API specification:
+
+#### H-Series & F-Series (Wall Mount Units)
+
+| Model      | AP Mode SSID | Region                       | Source            |
+| ---------- | ------------ | ---------------------------- | ----------------- |
+| UTY-TFSXH3 | AP-WH3E-\*   | Global (ex. USA/Canada)      | [ManualsLib][1]   |
+| UTY-TFSXH4 | AP-WH4E-\*   | USA & Canada                 | [ManualsLib][2]   |
+| UTY-TFSXF2 | AP-WH2E-\*   | Europe                       | [ManualsLib][3]   |
+| UTY-TFSXF3 | AP-WH2E-\*   | Australia, New Zealand, Asia | [Manuals.Plus][4] |
+
+#### J-Series (Ducted/Cassette Units)
+
+| Model      | AP Mode SSID | Region                  | Source               |
+| ---------- | ------------ | ----------------------- | -------------------- |
+| UTY-TFSXJ3 | AP-WJ3E-\*   | Global (ex. USA/Canada) | [ManualsLib][5]      |
+| UTY-TFSXJ4 | AP-WJ4E-\*   | USA & Canada            | [MyFilterCompany][6] |
+
+#### W-Series (General Purpose)
+
+| Model      | AP Mode SSID | Region           | Source          |
+| ---------- | ------------ | ---------------- | --------------- |
+| UTY-TFSXW1 | -            | Multiple regions | [ManualsLib][7] |
+
+#### Z-Series (VRF/Commercial Systems)
+
+| Model      | AP Mode SSID | Region                            | Source              |
+| ---------- | ------------ | --------------------------------- | ------------------- |
+| UTY-TFSXZ1 | -            | Europe, North America, ANZ        | [ManualsLib][8]     |
+| UTY-TFSXZ2 | -            | Thailand, India, Singapore        | [FujitsuGeneral][9] |
+| UTY-TFSXZ4 | -            | China                             | [FujitsuGeneral][9] |
+| UTY-TFNXZ1 | -            | Europe                            | [ManualsLib][10]    |
+| UTY-TFNXZ2 | -            | North America, Middle East        | [ManualsLib][10]    |
+| UTY-TFNXZ3 | -            | Oceania, Thailand, Vietnam, India | [ManualsLib][10]    |
+| UTY-TFNXZ4 | -            | China                             | [ManualsLib][10]    |
+
+**Note:** All UTY-TFSX series adapters use identical local API protocol. Regional variants differ only in regulatory compliance.
+
+### AP Mode SSID Patterns
+
+When in Access Point mode, devices broadcast SSIDs using their AP designation followed by the device ID:
+
+```text
+AP-WH3E-{device_id}    # UTY-TFSXH3
+AP-WH4E-{device_id}    # UTY-TFSXH4
+AP-WJ3E-{device_id}    # UTY-TFSXJ3
+AP-WJ4E-{device_id}    # UTY-TFSXJ4
+```
+
+Where `{device_id}` is the 12-character MAC address (without colons).
+
+### Protocol Validation
+
+This specification has been validated against:
+
+- **[pyairstage][11]** - Python library for Fujitsu Airstage local API
+- **[pyfujitsu][12]** - Python library for Fujitsu General AC API
+- **homebridge-fujitsu-airstage** - This plugin's implementation
+- Manual reverse engineering and packet analysis
+
+### Important Compatibility Notes
+
+- ✅ All UTY-TFSX series use the **identical local HTTP API**
+- ✅ Regional variants (J3/J4, H3/H4, Z1-Z4) use the **same protocol**
+- ✅ Both **residential** and **commercial** (VRF) adapters supported
+- ✅ Compatible with **FGLair** and **AIRSTAGE Mobile** apps
+- ⚠️ Adapters must be on the **same local network** as controller
+
+[1]: https://www.manualslib.com/manual/3042184/Fujitsu-Uty-Tfsxh3.html
+[2]: https://www.manualslib.com/products/Fujitsu-Uty-Tfsxh4-13254591.html
+[3]: https://www.manualslib.com/manual/2941246/Fujitsu-Uty-Tfsxf2.html
+[4]: https://manuals.plus/fujitsu/uty-tfsxf2-wireless-lan-adapter-manual
+[5]: https://www.manualslib.com/manual/3211354/Fujitsu-Uty-Tfsxj3.html
+[6]: https://www.myfiltercompany.com/products/fujitsu-general-uty-tfsxj4-wireless-lan-adapter
+[7]: https://www.manualslib.com/manual/3101060/Fujitsu-Uty-Tfsxw1.html
+[8]: https://www.manualslib.com/manual/2430832/Fujitsu-Uty-Tfsxz1.html
+[9]: https://www.fujitsu-general.com/eu/products/split/optionalparts.html
+[10]: https://www.manualslib.com/manual/1631266/Fujitsu-Uty-Tfnxz1.html
+[11]: https://pypi.org/project/pyairstage/
+[12]: https://github.com/Mmodarre/pyfujitsu
 
 ## Quick Reference
 
@@ -557,7 +616,3 @@ All adapters use the same protocol.
 | `ou_low_noise`   | R/W | String | "0"=OFF, "1"=ON                                  |
 | `iu_filter`      | R   | String | Device dependent                                 |
 | `iu_error_code`  | R   | String | Device dependent                                 |
-
----
-
-**END OF SPECIFICATION**
