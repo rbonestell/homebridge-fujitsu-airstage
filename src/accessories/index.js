@@ -10,7 +10,6 @@ const EnergySavingFanSwitchAccessory = require('./energy-saving-fan-switch-acces
 const FanModeSwitchAccessory = require('./fan-mode-switch-accessory');
 const MinimumHeatModeSwitchAccessory = require('./minimum-heat-mode-switch-accessory');
 const PowerfulSwitchAccessory = require('./powerful-switch-accessory');
-const OutdoorTemperatureSensorAccessory = require('./outdoor-temperature-sensor-accessory');
 
 module.exports = {
     ThermostatAccessory,
@@ -22,6 +21,5 @@ module.exports = {
     EnergySavingFanSwitchAccessory,
     FanModeSwitchAccessory,
     MinimumHeatModeSwitchAccessory,
-    PowerfulSwitchAccessory,
-    OutdoorTemperatureSensorAccessory
+    PowerfulSwitchAccessory
 };

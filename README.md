@@ -186,7 +186,3 @@ device.
 
 This accessory allows you to control the "Powerful" setting (on/off) of your
 device.
-
-### Outdoor Temperature Sensor (Local LAN only)
-
-This accessory provides current outdoor temperature sensor readings when supported.

@@ -245,28 +245,6 @@ class PlatformAccessoryManager {
         }
     }
 
-    registerOutdoorTemperatureSensorAccessory(deviceId, deviceName, model) {
-        const suffix = constants.ACCESSORY_SUFFIX_OUTDOOR_TEMPERATURE_SENSOR;
-        const existingAccessory = this._getExistingAccessory(deviceId, suffix);
-
-        if (existingAccessory) {
-            this._updateExistingAccessory(existingAccessory, deviceId, model);
-
-            new accessories.OutdoorTemperatureSensorAccessory(this.platform, existingAccessory);
-        } else {
-            const newAccessory = this._instantiateNewAccessory(
-                deviceId,
-                deviceName,
-                model,
-                suffix
-            );
-
-            new accessories.OutdoorTemperatureSensorAccessory(this.platform, newAccessory);
-
-            this._registerNewAccessory(newAccessory, deviceId, model);
-        }
-    }
-
     unregisterThermostatAccessory(deviceId, deviceName) {
         const suffix = constants.ACCESSORY_SUFFIX_THERMOSTAT;
 
@@ -335,12 +313,6 @@ class PlatformAccessoryManager {
         this._unregisterAccessory(deviceId, deviceName, suffix);
     }
 
-    unregisterOutdoorTemperatureSensorAccessory(deviceId, deviceName) {
-        const suffix = constants.ACCESSORY_SUFFIX_OUTDOOR_TEMPERATURE_SENSOR;
-
-        this._unregisterAccessory(deviceId, deviceName, suffix);
-    }
-
     refreshAllAccessoryCharacteristics(deviceId, onlyNotifyOnChange = false) {
         this.refreshThermostatAccessoryCharacteristics(deviceId, onlyNotifyOnChange);
         this.refreshFanAccessoryCharacteristics(deviceId, onlyNotifyOnChange);
@@ -352,7 +324,6 @@ class PlatformAccessoryManager {
         this.refreshFanModeSwitchAccessoryCharacteristics(deviceId, onlyNotifyOnChange);
         this.refreshMinimumHeatModeSwitchAccessoryCharacteristics(deviceId, onlyNotifyOnChange);
         this.refreshPowerfulSwitchAccessoryCharacteristics(deviceId, onlyNotifyOnChange);
-        this.refreshOutdoorTemperatureSensorAccessoryCharacteristics(deviceId, onlyNotifyOnChange);
     }
 
     refreshThermostatAccessoryCharacteristics(deviceId, onlyNotifyOnChange = false) {
@@ -530,24 +501,6 @@ class PlatformAccessoryManager {
             accessory,
             [
                 this.Characteristic.On
-            ],
-            onlyNotifyOnChange
-        );
-    }
-
-    refreshOutdoorTemperatureSensorAccessoryCharacteristics(deviceId, onlyNotifyOnChange = false) {
-        const suffix = constants.ACCESSORY_SUFFIX_OUTDOOR_TEMPERATURE_SENSOR;
-        const accessory = this._getExistingAccessory(deviceId, suffix);
-
-        if (accessory === null) {
-            return false;
-        }
-
-        return this._refreshAccessoryCharacteristics(
-            accessory,
-            [
-                this.Characteristic.CurrentTemperature,
-                this.Characteristic.StatusFault
             ],
             onlyNotifyOnChange
         );

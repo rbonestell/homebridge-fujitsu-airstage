@@ -219,15 +219,6 @@ celsius = ((fahrenheit - 32) * 5) / 9;
 
 **Example:** `"7200"` = 72.00°F = 22.22°C
 
-### Outdoor Temperature
-
-**Parameter:** `iu_outdoor_tmp`
-**Type:** String (numeric)
-**Direction:** Read-only
-**Encoding:** Fahrenheit × 100
-
-**Note:** May return `"0"` if outdoor sensor not available
-
 ### Operation Mode
 
 **Parameter:** `iu_op_mode`
@@ -607,7 +598,6 @@ This specification has been validated against:
 | `iu_onoff`       | R/W | String | "0"=OFF, "1"=ON                                  |
 | `iu_set_tmp`     | R/W | String | Celsius × 10                                     |
 | `iu_indoor_tmp`  | R   | String | Fahrenheit × 100                                 |
-| `iu_outdoor_tmp` | R   | String | Fahrenheit × 100                                 |
 | `iu_op_mode`     | R/W | String | "0"=Auto, "1"=Cool, "2"=Dry, "3"=Fan, "4"=Heat   |
 | `iu_fan_spd`     | R/W | String | "0"=Auto, "2"=Quiet, "5"=Low, "8"=Med, "11"=High |
 | `iu_fan_ctrl`    | R/W | String | "0"=Normal, "1"=Advanced                         |

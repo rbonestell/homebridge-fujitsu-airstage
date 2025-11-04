@@ -295,15 +295,6 @@
 				"title": "Enable 'Powerful' switch",
 				"type": "boolean",
 				"default": false
-			},
-			"enableOutdoorTemperatureSensor": {
-				"title": "Enable 'Outdoor Temperature' sensor (Local LAN only)",
-				"type": "boolean",
-				"default": false,
-				"description": "Displays outdoor temperature from the unit's outdoor sensor. Only available in Local LAN connection mode. The sensor may not be available on all units.",
-				"condition": {
-					"functionBody": "return model.connectionMode === 'local';"
-				}
 			}
 		}
 	}

@@ -558,40 +558,6 @@ class LocalClient {
             .catch(error => callback(error, null));
     }
 
-    getOutdoorTemperature(deviceId, scale, callback) {
-        this._getParam(deviceId, localConstants.PARAM_OUTDOOR_TEMP)
-            .then(response => {
-                const device = this.devices.get(deviceId.toUpperCase());
-                const deviceName = device ? device.name : deviceId;
-
-                // Local API uses Fahrenheit × 100 encoding
-                const rawValue = response[localConstants.PARAM_OUTDOOR_TEMP];
-                this.logger?.debug(`[Local] getOutdoorTemperature for ${deviceName} - Raw API value: ${rawValue}, Requested scale: ${scale}`);
-
-                // Check if outdoor sensor is unavailable (null or undefined, but NOT "0" which is valid 0°C)
-                if (rawValue === null || rawValue === undefined) {
-                    this.logger?.warn(`[Local] getOutdoorTemperature for ${deviceName} - Outdoor sensor not available (raw value: ${rawValue})`);
-                    const error = new Error('Outdoor temperature sensor not available on this device');
-                    callback(error, null);
-                    return;
-                }
-
-                let celsius = this._decodeFahrenheitToCelsius(rawValue);
-                this.logger?.debug(`[Local] getOutdoorTemperature for ${deviceName} - After F→C conversion: ${celsius}°C`);
-
-                if (scale === airstageConstants.TEMPERATURE_SCALE_FAHRENHEIT) {
-                    const fahrenheit = this._celsiusToFahrenheit(celsius);
-                    this.logger?.debug(`[Local] getOutdoorTemperature for ${deviceName} - After C→F conversion: ${fahrenheit}°F (returning)`);
-                    celsius = fahrenheit;
-                } else {
-                    this.logger?.debug(`[Local] getOutdoorTemperature for ${deviceName} - Returning Celsius: ${celsius}°C`);
-                }
-
-                callback(null, celsius);
-            })
-            .catch(error => callback(error, null));
-    }
-
     getTargetTemperature(deviceId, scale, callback) {
         this._getParam(deviceId, localConstants.PARAM_TARGET_TEMP)
             .then(response => {

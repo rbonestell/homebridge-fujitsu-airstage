@@ -19,7 +19,6 @@ module.exports = {
   PARAM_POWER: 'iu_onoff',
   PARAM_TARGET_TEMP: 'iu_set_tmp',
   PARAM_INDOOR_TEMP: 'iu_indoor_tmp',
-  PARAM_OUTDOOR_TEMP: 'iu_outdoor_tmp',
   PARAM_OPERATION_MODE: 'iu_op_mode',
   PARAM_FAN_SPEED: 'iu_fan_spd',
   PARAM_FAN_CTRL: 'iu_fan_ctrl',
