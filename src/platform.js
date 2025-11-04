@@ -152,7 +152,7 @@ class Platform {
 
         // Set up periodic polling for local mode
         if (withSetInterval) {
-            const pollingInterval = (this.config.localPollingInterval || 120) * 1000; // Default: 120 seconds
+            const pollingInterval = (device.localPollingInterval || 120) * 1000; // Default: 120 seconds
 
             if (pollingInterval > 0) {
                 this.log.info(`Setting up local device polling every ${pollingInterval / 1000} seconds`);
