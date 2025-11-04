@@ -36,7 +36,7 @@ class Platform {
 
         if (connectionMode === 'local') {
             // Store initialization promise to await in discoverDevices
-            this._initPromise = this._initLocalMode();
+            this._initPromise = this._initLocalMode(withSetInterval);
         } else {
             this._initCloudMode(withSetInterval);
         }
@@ -44,7 +44,7 @@ class Platform {
         this.api.on('didFinishLaunching', this.discoverDevices.bind(this));
     }
 
-    async _initLocalMode() {
+    async _initLocalMode(withSetInterval) {
         this.log.info('Initializing Local LAN mode');
         this.connectionMode = 'local';
 
@@ -149,6 +149,21 @@ class Platform {
         this.airstageClient = new airstage.local.Client([validatedDevice], this.log, this.configManager);
 
         this.log.success(`✓ Local LAN mode initialized with device: ${device.name}`);
+
+        // Set up periodic polling for local mode
+        if (withSetInterval) {
+            const pollingInterval = (this.config.localPollingInterval || 120) * 1000; // Default: 120 seconds
+
+            if (pollingInterval > 0) {
+                this.log.info(`Setting up local device polling every ${pollingInterval / 1000} seconds`);
+                setInterval(
+                    this._refreshLocalDeviceState.bind(this),
+                    pollingInterval
+                );
+            } else {
+                this.log.info('Local device polling disabled (localPollingInterval set to 0)');
+            }
+        }
     }
 
     _initCloudMode(withSetInterval) {
@@ -520,6 +535,23 @@ class Platform {
                 );
             }).bind(this)
         );
+    }
+
+    _refreshLocalDeviceState() {
+        this.log.debug('Polling local device state');
+
+        // Get the device ID from the local device config
+        const device = this.config.localDevice;
+        if (!device || !device.deviceId) {
+            this.log.error('Cannot refresh local device state: device ID not available');
+            return;
+        }
+
+        const deviceId = device.deviceId;
+
+        // Refresh all accessory characteristics with change detection enabled
+        // onlyNotifyOnChange = true ensures we only push to HomeKit when values actually change
+        this.accessoryManager.refreshAllAccessoryCharacteristics(deviceId, true);
     }
 }
 

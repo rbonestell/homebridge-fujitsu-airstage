@@ -42,6 +42,13 @@ class ThermostatAccessory extends Accessory {
 
         this.service.getCharacteristic(this.Characteristic.Name)
             .on('get', this.getName.bind(this));
+
+        // Initialize characteristic state cache for change detection during polling
+        this._characteristicState[this.Characteristic.CurrentHeatingCoolingState.UUID] = undefined;
+        this._characteristicState[this.Characteristic.TargetHeatingCoolingState.UUID] = undefined;
+        this._characteristicState[this.Characteristic.CurrentTemperature.UUID] = undefined;
+        this._characteristicState[this.Characteristic.TargetTemperature.UUID] = undefined;
+        this._characteristicState[this.Characteristic.TemperatureDisplayUnits.UUID] = undefined;
     }
 
     getCurrentHeatingCoolingState(callback) {

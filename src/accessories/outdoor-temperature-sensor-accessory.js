@@ -30,6 +30,10 @@ class OutdoorTemperatureSensorAccessory extends Accessory {
 
         // Track sensor fault state
         this.sensorFault = this.Characteristic.StatusFault.NO_FAULT;
+
+        // Initialize characteristic state cache for change detection during polling
+        this._characteristicState[this.Characteristic.CurrentTemperature.UUID] = undefined;
+        this._characteristicState[this.Characteristic.StatusFault.UUID] = undefined;
     }
 
     getCurrentTemperature(callback) {

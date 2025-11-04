@@ -59,6 +59,17 @@
 						"placeholder": "Auto-detected via ARP",
 						"description": "12-character device ID (MAC address without colons). Leave empty for automatic detection via ARP."
 					},
+					"localPollingInterval": {
+						"title": "Local Polling Interval (seconds)",
+						"type": "number",
+						"default": 120,
+						"minimum": 0,
+						"maximum": 600,
+						"required": false,
+						"placeholder": "120",
+						"description": "How often to poll the local device for status updates (in seconds). Default is 120 seconds (2 minutes). Set to 0 to disable automatic polling. Only applies to Local LAN connection mode.",
+						"controlType": "number"
+					},
 					"deviceSubId": {
 						"title": "Device Sub ID",
 						"type": "integer",
