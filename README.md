@@ -7,6 +7,7 @@ A [Homebridge](https://github.com/homebridge/homebridge) plugin to control
 Fujitsu Airstage air conditioning and heat pump devices.
 
 This plugin supports two connection modes:
+
 - **Cloud API** - Connect via Fujitsu's cloud service (requires Airstage account)
 - **Local LAN** - Connect directly to devices on your local network (no account required)
 
@@ -23,6 +24,7 @@ your iOS or Android device, signed up for an account, and configured your device
 ### For Local LAN Mode (Direct)
 
 For Local LAN mode, you need:
+
 - Your AirStage WiFi adapter already set up using the AirStage mobile app
 - The adapter connected to the **same WiFi network** as your Homebridge host
 - Your device's local IP address (found in your router or via network scanner)
@@ -38,6 +40,7 @@ The easiest way to configure this plugin is to use
 ### Connection Mode Selection
 
 When configuring the plugin, you'll first choose a **Connection Mode**:
+
 - **Cloud API (Internet)** - Uses Fujitsu's cloud service (⚠️ Warning: Fujitsu's API may ban your IP for excessive requests)
 - **Local LAN (Direct)** - Connects directly to devices on your local network (faster, more reliable)
 
@@ -47,29 +50,29 @@ When configuring the plugin, you'll first choose a **Connection Mode**:
 
 ```json
 {
-    "platforms": [
-        {
-            "name": "Airstage Platform",
-            "platform": "fujitsu-airstage",
-            "connectionMode": "cloud",
-            "region": "us",
-            "country": "United States",
-            "language": "en",
-            "email": "test@example.com",
-            "password": "test1234",
-            "rememberEmailAndPassword": false,
-            "enableThermostat": true,
-            "enableFan": true,
-            "enableVerticalAirflowDirection": false,
-            "enableAutoFanSpeedSwitch": false,
-            "enableDryModeSwitch": false,
-            "enableEconomySwitch": false,
-            "enableEnergySavingFanSwitch": false,
-            "enableFanModeSwitch": false,
-            "enableMinimumHeatModeSwitch": false,
-            "enablePowerfulSwitch": false
-        }
-    ]
+  "platforms": [
+    {
+      "name": "Airstage Platform",
+      "platform": "fujitsu-airstage",
+      "connectionMode": "cloud",
+      "region": "us",
+      "country": "United States",
+      "language": "en",
+      "email": "test@example.com",
+      "password": "test1234",
+      "rememberEmailAndPassword": false,
+      "enableThermostat": true,
+      "enableFan": true,
+      "enableVerticalAirflowDirection": false,
+      "enableAutoFanSpeedSwitch": false,
+      "enableDryModeSwitch": false,
+      "enableEconomySwitch": false,
+      "enableEnergySavingFanSwitch": false,
+      "enableFanModeSwitch": false,
+      "enableMinimumHeatModeSwitch": false,
+      "enablePowerfulSwitch": false
+    }
+  ]
 }
 ```
 
@@ -89,33 +92,34 @@ Airstage API.
 
 ```json
 {
-    "platforms": [
-        {
-            "name": "Airstage Platform",
-            "platform": "fujitsu-airstage",
-            "connectionMode": "local",
-            "localDevice": {
-                "name": "Living Room AC",
-                "ipAddress": "192.168.1.100",
-                "deviceId": "",
-                "deviceSubId": 0
-            },
-            "enableThermostat": true,
-            "enableFan": true,
-            "enableVerticalAirflowDirection": false,
-            "enableAutoFanSpeedSwitch": false,
-            "enableDryModeSwitch": false,
-            "enableEconomySwitch": false,
-            "enableEnergySavingFanSwitch": false,
-            "enableFanModeSwitch": false,
-            "enableMinimumHeatModeSwitch": false,
-            "enablePowerfulSwitch": false
-        }
-    ]
+  "platforms": [
+    {
+      "name": "Airstage Platform",
+      "platform": "fujitsu-airstage",
+      "connectionMode": "local",
+      "localDevice": {
+        "name": "Living Room AC",
+        "ipAddress": "192.168.1.100",
+        "deviceId": "",
+        "deviceSubId": 0
+      },
+      "enableThermostat": true,
+      "enableFan": true,
+      "enableVerticalAirflowDirection": false,
+      "enableAutoFanSpeedSwitch": false,
+      "enableDryModeSwitch": false,
+      "enableEconomySwitch": false,
+      "enableEnergySavingFanSwitch": false,
+      "enableFanModeSwitch": false,
+      "enableMinimumHeatModeSwitch": false,
+      "enablePowerfulSwitch": false
+    }
+  ]
 }
 ```
 
 **Notes for Local LAN mode:**
+
 - The AirStage WiFi adapter must be set up and connected to your network first (use the AirStage mobile app)
 - The device must be on the **same local network** as your Homebridge host
 - `deviceId` can be left empty for automatic detection via ARP
@@ -182,3 +186,7 @@ device.
 
 This accessory allows you to control the "Powerful" setting (on/off) of your
 device.
+
+### Outdoor Temperature Sensor (Local LAN only)
+
+This accessory provides current outdoor temperature sensor readings when supported.
