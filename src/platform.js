@@ -462,6 +462,20 @@ class Platform {
                 deviceName
             );
         }
+
+        // Outdoor Temperature Sensor (Local LAN only)
+        if (this.connectionMode === 'local' && this.config.enableOutdoorTemperatureSensor) {
+            this.accessoryManager.registerOutdoorTemperatureSensorAccessory(
+                deviceId,
+                deviceName,
+                model
+            );
+        } else {
+            this.accessoryManager.unregisterOutdoorTemperatureSensorAccessory(
+                deviceId,
+                deviceName
+            );
+        }
     }
 
     _refreshAirstageClientTokenOrAuthenticate() {

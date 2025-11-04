@@ -14,3 +14,4 @@ module.exports.ACCESSORY_SUFFIX_ENERGY_SAVING_FAN_SWITCH = 'energy-saving-fan-sw
 module.exports.ACCESSORY_SUFFIX_FAN_MODE_SWITCH = 'fan-mode-switch';
 module.exports.ACCESSORY_SUFFIX_MINIMUM_HEAT_MODE_SWITCH = 'minimum-heat-mode-switch';
 module.exports.ACCESSORY_SUFFIX_POWERFUL_SWITCH = 'powerful-switch';
+module.exports.ACCESSORY_SUFFIX_OUTDOOR_TEMPERATURE_SENSOR = 'outdoor-temperature-sensor';
